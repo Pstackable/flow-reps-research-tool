@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Flow Reps Research Engine - TEST</title>
+  <title>Flow Reps Research Engine</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { 
@@ -12,62 +12,180 @@
       color: #1a1a1a; 
     }
     #root { min-height: 100vh; padding: 20px; }
-    .container { max-width: 1000px; margin: 0 auto; }
-    .header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
-    .header h1 { font-size: 32px; font-weight: 600; margin: 0; }
-    .badge { background-color: #ffeb3b; color: #000; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-    .alert { padding: 12px; border-radius: 6px; margin-bottom: 24px; font-size: 14px; }
-    .alert-error { background-color: #ffe6e6; color: #cc0000; }
-    .alert-info { background-color: #d1ecf1; color: #0c5460; }
-    .alert-success { background-color: #d4edda; color: #155724; }
-    .alert-warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffc107; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .header { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
+    .header h1 { font-size: 36px; font-weight: 600; margin: 0; }
+    .badge { background-color: #ffeb3b; color: #000; padding: 6px 14px; border-radius: 12px; font-size: 11px; font-weight: 700; }
+    
+    .alert { padding: 14px; border-radius: 8px; margin-bottom: 24px; font-size: 14px; }
+    .alert-error { background-color: #fee; color: #c00; border: 1px solid #fcc; }
+    .alert-info { background-color: #eff; color: #066; border: 1px solid #cff; }
+    .alert-success { background-color: #efe; color: #060; border: 1px solid #cfc; }
+    .alert-warning { background-color: #ffc; color: #630; border: 1px solid #fc0; }
+    
     .form-group { margin-bottom: 24px; }
-    .form-group label { display: block; margin-bottom: 8px; font-weight: 500; font-size: 14px; }
+    .form-group label { display: block; margin-bottom: 8px; font-weight: 500; font-size: 14px; color: #333; }
+    
     input[type="text"] { 
       width: 100%; 
-      padding: 10px 12px; 
+      padding: 12px; 
       border: 1px solid #ddd; 
       border-radius: 6px; 
       font-size: 14px; 
-      margin-bottom: 12px; 
+      margin-bottom: 12px;
+      font-family: inherit;
     }
+    
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #0066cc;
+      box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+    }
+    
     button { 
-      padding: 10px 16px; 
+      padding: 12px 20px; 
       border: none; 
       border-radius: 6px; 
       font-size: 14px; 
       font-weight: 500; 
-      cursor: pointer; 
+      cursor: pointer;
+      transition: all 0.2s;
     }
-    .btn-primary { background-color: #0066cc; color: white; }
-    .btn-primary:disabled { background-color: #ccc; cursor: not-allowed; }
-    .btn-secondary { background-color: white; color: #666; border: 1px solid #ddd; }
-    .keywords { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; background-color: #f0f0f0; border-radius: 6px; }
-    .keyword { padding: 6px 12px; background-color: #e6f2ff; color: #0066cc; border-radius: 12px; font-size: 13px; }
-    .website-list { padding: 12px; background-color: #f9f9f9; border-radius: 6px; border: 1px solid #ddd; max-height: 300px; overflow: auto; }
-    .website-item { font-size: 12px; padding: 8px 0; border-bottom: 1px solid #eee; }
-    .website-name { font-weight: 500; }
-    .website-domain { color: #0066cc; font-size: 11px; }
-    .raw-results { border: 2px solid #333; border-radius: 6px; margin-bottom: 24px; overflow: hidden; }
-    .raw-header { background-color: #333; color: white; padding: 12px; font-weight: 500; font-size: 14px; }
+    
+    .btn-primary { 
+      background-color: #0066cc; 
+      color: white; 
+    }
+    .btn-primary:hover:not(:disabled) { 
+      background-color: #0052a3; 
+    }
+    .btn-primary:disabled { 
+      background-color: #ccc; 
+      cursor: not-allowed; 
+    }
+    
+    .btn-secondary { 
+      background-color: white; 
+      color: #666; 
+      border: 1px solid #ddd; 
+    }
+    .btn-secondary:hover:not(:disabled) { 
+      background-color: #f5f5f5; 
+    }
+    
+    .keywords { 
+      display: flex; 
+      flex-wrap: wrap; 
+      gap: 8px; 
+      padding: 12px; 
+      background-color: #f9f9f9; 
+      border-radius: 6px;
+      border: 1px solid #eee;
+    }
+    .keyword { 
+      padding: 6px 12px; 
+      background-color: #e6f2ff; 
+      color: #0066cc; 
+      border-radius: 12px; 
+      font-size: 13px; 
+      font-weight: 500;
+    }
+    
+    .website-list { 
+      padding: 12px; 
+      background-color: #f9f9f9; 
+      border-radius: 6px; 
+      border: 1px solid #eee; 
+      max-height: 300px; 
+      overflow: auto; 
+    }
+    .website-item { 
+      font-size: 13px; 
+      padding: 10px 0; 
+      border-bottom: 1px solid #eee; 
+    }
+    .website-item:last-child { 
+      border-bottom: none; 
+    }
+    .website-name { 
+      font-weight: 500; 
+      color: #000;
+    }
+    .website-domain { 
+      color: #0066cc; 
+      font-size: 12px; 
+    }
+    
+    .raw-results { 
+      border: 2px solid #333; 
+      border-radius: 6px; 
+      margin-bottom: 24px; 
+      overflow: hidden; 
+    }
+    .raw-header { 
+      background-color: #333; 
+      color: white; 
+      padding: 12px; 
+      font-weight: 500; 
+      font-size: 14px; 
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
     .raw-content { 
       background-color: #000; 
       color: #0f0; 
       padding: 16px; 
-      max-height: 700px; 
+      max-height: 600px; 
       overflow: auto; 
       white-space: pre-wrap; 
       word-wrap: break-word; 
       font-size: 12px; 
-      line-height: 1.5; 
+      line-height: 1.6; 
       font-family: 'Courier New', monospace;
-      min-height: 100px;
+      min-height: 80px;
     }
-    .button-group { display: flex; gap: 8px; }
-    .button-group button { flex: 1; }
-    h2 { font-size: 16px; font-weight: 500; margin-bottom: 12px; }
-    h3 { font-size: 14px; font-weight: 500; margin-bottom: 12px; }
-    p { font-size: 13px; color: #666; margin: 0; }
+    
+    .button-group { 
+      display: flex; 
+      gap: 8px; 
+    }
+    .button-group button { 
+      flex: 1; 
+    }
+    
+    h2 { 
+      font-size: 18px; 
+      font-weight: 600; 
+      margin-bottom: 12px; 
+      color: #000;
+    }
+    h3 { 
+      font-size: 14px; 
+      font-weight: 600; 
+      margin-bottom: 12px; 
+      color: #333;
+    }
+    p { 
+      font-size: 13px; 
+      color: #666; 
+      margin: 0; 
+    }
+    
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 0.8s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
@@ -94,28 +212,18 @@
       const [loadingWebsites, setLoadingWebsites] = useState(true);
 
       useEffect(() => {
-        console.log('🚀 App starting...');
         fetchWebsites();
       }, []);
 
       const fetchWebsites = async () => {
         try {
-          console.log('📥 Fetching websites from backend...');
           const response = await fetch('https://flow-reps-research-tool-production.up.railway.app/websites');
-          console.log('📦 Response status:', response.status);
           
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          if (!response.ok) throw new Error('Failed to load websites');
           
           const data = await response.json();
-          console.log('✅ Loaded', data.websites?.length, 'websites');
-          
-          if (data.websites && data.websites.length > 0) {
-            console.log('Sample websites:', data.websites.slice(0, 3));
-          }
-          
           setWebsites(data.websites || []);
         } catch (err) {
-          console.error('❌ Failed to load websites:', err);
           setError(`Error loading websites: ${err.message}`);
         } finally {
           setLoadingWebsites(false);
@@ -132,8 +240,6 @@
         setError('');
 
         try {
-          console.log('\n📝 Expanding topic:', topic);
-          
           const response = await fetch('https://flow-reps-research-tool-production.up.railway.app/research', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -143,28 +249,23 @@
             }),
           });
 
-          console.log('📦 Response status:', response.status);
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          if (!response.ok) throw new Error('Failed to expand topic');
           
           const data = await response.json();
-          console.log('✅ Response:', data.result);
-          
           const keywordArray = data.result.split(',').map(k => k.trim()).filter(k => k);
-          console.log('✅ Keywords extracted:', keywordArray);
 
           setExpandedTopic(topic);
           setKeywords(keywordArray);
 
+          // Auto-select first 10 websites for testing
           const newSet = new Set();
           for (let i = 0; i < Math.min(10, websites.length); i++) {
             newSet.add(i);
           }
-          console.log('✅ Selected 10 websites for testing');
           setSelectedWebsites(newSet);
 
           setStep(2);
         } catch (err) {
-          console.error('❌ Error:', err);
           setError(`Error: ${err.message}`);
         } finally {
           setExpandingTopic(false);
@@ -183,49 +284,20 @@
         try {
           const selectedWebsitesList = Array.from(selectedWebsites).map(i => websites[i]);
 
-          console.log('\n' + '='.repeat(70));
-          console.log('🔍 STARTING SEARCH');
-          console.log('='.repeat(70));
-          console.log('Topic:', expandedTopic);
-          console.log('Keywords:', keywords);
-          console.log('Number of websites:', selectedWebsitesList.length);
-          console.log('\nWebsites to search:');
-          selectedWebsitesList.forEach((w, i) => {
-            console.log(`  ${i + 1}. ${w.name} (${w.domain})`);
-          });
-          console.log('='.repeat(70));
-
-          const requestBody = {
-            action: 'search',
-            topic: expandedTopic,
-            keywords,
-            websites: selectedWebsitesList,
-          };
-
-          console.log('\n📤 Sending request to backend...');
-          console.log('Request body:', JSON.stringify(requestBody, null, 2));
-
           const response = await fetch('https://flow-reps-research-tool-production.up.railway.app/research', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody),
+            body: JSON.stringify({
+              action: 'search',
+              topic: expandedTopic,
+              keywords,
+              websites: selectedWebsitesList,
+            }),
           });
 
-          console.log('📦 Response status:', response.status);
-
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-          }
+          if (!response.ok) throw new Error('Search failed');
 
           const data = await response.json();
-
-          console.log('\n' + '='.repeat(70));
-          console.log('📨 PERPLEXITY RESPONSE');
-          console.log('='.repeat(70));
-          console.log('Length:', data.result.length, 'characters');
-          console.log('Content:');
-          console.log(data.result);
-          console.log('='.repeat(70) + '\n');
 
           setResults({
             topic: expandedTopic,
@@ -237,7 +309,6 @@
 
           setStep(3);
         } catch (err) {
-          console.error('❌ Search error:', err);
           setError(`Search error: ${err.message}`);
         } finally {
           setSearching(false);
@@ -258,7 +329,7 @@
         <div className="container">
           <div className="header">
             <h1>Research Engine</h1>
-            <span className="badge">TEST - 10 WEBSITES</span>
+            <span className="badge">BETA</span>
           </div>
 
           {error && <div className="alert alert-error">{error}</div>}
@@ -267,35 +338,41 @@
             <div>
               {loadingWebsites && (
                 <div className="alert alert-info">
-                  ⏳ Loading {websites.length} websites... Check console (F12) for details
+                  ⏳ Loading websites...
                 </div>
               )}
 
               <div className="form-group">
-                <label>Research topic</label>
+                <label>What are you researching?</label>
                 <input
                   type="text"
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleExpandTopic()}
-                  placeholder="e.g., ball valves, liquid cooling, valves"
+                  placeholder="e.g., ball valves, liquid cooling, piping systems"
+                  disabled={expandingTopic}
                 />
                 <button 
                   className="btn-primary" 
                   onClick={handleExpandTopic}
                   disabled={expandingTopic || !topic.trim()}
                 >
-                  {expandingTopic ? 'Expanding...' : 'Expand topic'}
+                  {expandingTopic ? (
+                    <>
+                      <span className="spinner"></span> Expanding...
+                    </>
+                  ) : (
+                    'Expand topic'
+                  )}
                 </button>
               </div>
 
-              <div className="alert alert-warning">
-                <strong>💡 How to test:</strong><br/>
-                1. Enter "ball valves" or "liquid cooling"<br/>
-                2. Click "Expand topic"<br/>
-                3. Review auto-selected 10 websites<br/>
-                4. Click "Search"<br/>
-                5. Open DevTools (F12) to see detailed logs
+              <div className="alert alert-info">
+                <strong>💡 How it works:</strong><br/>
+                1. Enter a research topic<br/>
+                2. We'll expand it into keywords<br/>
+                3. Auto-select the first 10 companies<br/>
+                4. Search their websites for related content
               </div>
             </div>
           )}
@@ -303,7 +380,7 @@
           {step === 2 && (
             <div>
               <div className="alert alert-warning">
-                <strong>ℹ️ TEST MODE:</strong> Automatically selected first 10 websites (Total available: {websites.length})
+                <strong>📋 Test Mode:</strong> Auto-selected first {selectedWebsites.size} websites (total: {websites.length})
               </div>
 
               <div className="form-group">
@@ -320,7 +397,7 @@
               </div>
 
               <div className="form-group">
-                <h3>Selected Websites ({selectedWebsites.size})</h3>
+                <h3>Selected Companies ({selectedWebsites.size})</h3>
                 <div className="website-list">
                   {selectedWebsites.size > 0 ? (
                     Array.from(selectedWebsites).map(idx => (
@@ -342,7 +419,13 @@
                   onClick={handleSearch}
                   disabled={searching || selectedWebsites.size === 0}
                 >
-                  {searching ? 'Searching...' : 'Search'}
+                  {searching ? (
+                    <>
+                      <span className="spinner"></span> Searching...
+                    </>
+                  ) : (
+                    'Search'
+                  )}
                 </button>
               </div>
             </div>
@@ -351,13 +434,13 @@
           {step === 3 && results && (
             <div>
               <div className="alert alert-success">
-                <strong>✓ Search Complete!</strong> Searched {results.websiteCount} websites
+                <strong>✓ Search Complete!</strong> Searched {results.websiteCount} companies
               </div>
 
               <h2>Results for "{results.topic}"</h2>
               <p>{results.timestamp}</p>
 
-              <div style={{ marginBottom: '24px', padding: '12px', backgroundColor: '#f0f0f0', borderRadius: '6px' }}>
+              <div style={{ marginBottom: '24px', padding: '12px', backgroundColor: '#f9f9f9', borderRadius: '6px', border: '1px solid #eee' }}>
                 <strong style={{ fontSize: '13px' }}>Websites searched:</strong>
                 <pre style={{ fontSize: '12px', color: '#666', margin: '8px 0 0 0', whiteSpace: 'pre-wrap', wordWrap: 'break-word', fontFamily: 'monospace' }}>
                   {results.websiteList}
@@ -365,16 +448,15 @@
               </div>
 
               <div className="raw-results">
-                <div className="raw-header">📄 Raw Results from Perplexity ({results.findings.length} characters)</div>
+                <div className="raw-header">
+                  📄 Results ({results.findings.length} characters)
+                  <span style={{ fontSize: '11px', color: '#aaa' }}>via Perplexity</span>
+                </div>
                 <div className="raw-content">{results.findings}</div>
               </div>
 
-              <div className="alert alert-info">
-                <strong>💡 Debugging:</strong> Check DevTools Console (F12) to see the full request/response logs
-              </div>
-
               <button className="btn-primary" onClick={handleReset} style={{ width: '100%' }}>
-                Try another topic
+                Search another topic
               </button>
             </div>
           )}
