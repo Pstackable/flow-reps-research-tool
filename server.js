@@ -36,14 +36,28 @@ Return ONLY a comma-separated list. Nothing else.`;
       const sites = websites.map(w => `${w.name} (${w.domain})`).join(', ');
       const keys = keywords.join(', ');
 
-      prompt = `Topic: "${topic}"
-Websites: ${sites}
-Keywords: ${keys}
+      prompt = `Search these websites for content related to: "${topic}"
 
-Search these websites for this topic. For each website provide:
-1. Website Name
-2. Findings (1-3 sentences) or "No Updates Found"
-3. SME Alert (if applicable, format: "SME ALERT: EXPERTISE TYPE")`;
+Websites to search: ${sites}
+
+Keywords to look for: ${keys}
+
+IMPORTANT INSTRUCTIONS:
+1. If relevant content is found, state what was found up front (e.g., "A white paper titled..." or "A product page titled...")
+2. Extract a 1-3 sentence summary of the content
+3. If the website alludes to the company being a leader or subject matter expert in data center engineering, start with "SME ALERT: DATA CENTER ENGINEERING" before the findings
+4. Format findings as numbered list with specific document/page titles
+5. Include reference numbers in brackets if citing specific sections
+
+If the website alludes to expertise in data center engineering, liquid cooling, advanced thermal solutions, or similar areas, include SME ALERT at the top.
+
+Format example:
+SME ALERT: DATA CENTER ENGINEERING
+
+1. A white paper titled "[Title]" was found. [1-3 sentence summary][1]
+2. A product page titled "[Title]" was found. [1-3 sentence summary][2]
+
+If no relevant information is found, respond ONLY with: No Updates Found`;
     }
 
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
