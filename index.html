@@ -22,11 +22,13 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script type="text/babel">
     const { useState, useEffect } = React;
 
     function ResearchEngine() {
-      const [step, setStep] = useState(1); // 1: topic, 2: websites, 3: results
+      const [step, setStep] = useState(1);
       const [topic, setTopic] = useState('');
       const [expandedTopic, setExpandedTopic] = useState(null);
       const [keywords, setKeywords] = useState([]);
@@ -36,6 +38,7 @@
       const [filterText, setFilterText] = useState('');
       const [selectedWebsites, setSelectedWebsites] = useState(new Set());
       const [results, setResults] = useState(null);
+      const [parsedData, setParsedData] = useState([]);
       const [expandingTopic, setExpandingTopic] = useState(false);
       const [searching, setSearching] = useState(false);
       const [error, setError] = useState('');
@@ -216,6 +219,88 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
         }
       };
 
+      const parseResults = (rawText) => {
+        const entries = [];
+        const lines = rawText.split('\n');
+        let currentEntry = null;
+
+        lines.forEach(line => {
+          const companyMatch = line.match(/^(\d+\.\s+)?(.+?)\s*[-–]\s*(.+?)$/);
+          if (companyMatch) {
+            if (currentEntry) entries.push(currentEntry);
+            currentEntry = {
+              companyName: companyMatch[2].trim(),
+              website: companyMatch[3].trim(),
+              summary: '',
+              dateFound: new Date().toLocaleDateString('en-US'),
+              citationLinks: ''
+            };
+          } else if (currentEntry && line.trim()) {
+            if (line.includes('Summary:')) {
+              currentEntry.summary = line.replace('Summary:', '').trim();
+            } else if (line.includes('http')) {
+              currentEntry.citationLinks = line.trim();
+            } else if (currentEntry.summary) {
+              currentEntry.summary += ' ' + line.trim();
+            }
+          }
+        });
+
+        if (currentEntry) entries.push(currentEntry);
+        return entries;
+      };
+
+      const exportToExcel = () => {
+        if (parsedData.length === 0) {
+          alert('No data to export');
+          return;
+        }
+
+        const ws = XLSX.utils.json_to_sheet(parsedData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Research Results');
+        XLSX.writeFile(wb, `Research_${expandedTopic}_${new Date().toLocaleDateString()}.xlsx`);
+      };
+
+      const exportToPDF = () => {
+        if (parsedData.length === 0) {
+          alert('No data to export');
+          return;
+        }
+
+        const element = document.createElement('div');
+        element.innerHTML = `
+          <h1>${expandedTopic}</h1>
+          <p>Date: ${new Date().toLocaleDateString()}</p>
+          <table style="width:100%; border-collapse: collapse;">
+            <tr style="background-color: #f0f0f0;">
+              <th style="border: 1px solid #ddd; padding: 8px;">Company Name</th>
+              <th style="border: 1px solid #ddd; padding: 8px;">Website</th>
+              <th style="border: 1px solid #ddd; padding: 8px;">Summary</th>
+              <th style="border: 1px solid #ddd; padding: 8px;">Date</th>
+            </tr>
+            ${parsedData.map(item => `
+              <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">${item.companyName}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;"><a href="${item.website}">${item.website}</a></td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${item.summary}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${item.dateFound}</td>
+              </tr>
+            `).join('')}
+          </table>
+        `;
+
+        const opt = {
+          margin: 10,
+          filename: `Research_${expandedTopic}_${new Date().toLocaleDateString()}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2 },
+          jsPDF: { orientation: 'landscape', unit: 'mm', format: 'a4' }
+        };
+
+        html2pdf().set(opt).from(element).save();
+      };
+
       const runSearch = async () => {
         if (selectedWebsites.size === 0) {
           setError('Please select at least one website');
@@ -249,6 +334,9 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
             findings: data.result,
             timestamp: new Date().toLocaleString(),
           });
+
+          const parsed = parseResults(data.result);
+          setParsedData(parsed);
           setStep(3);
         } catch (err) {
           setError(`Search error: ${err.message}`);
@@ -264,6 +352,7 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
         setKeywords([]);
         setSelectedWebsites(new Set());
         setResults(null);
+        setParsedData([]);
         setError('');
         setCurrentPrompt('');
         setListName('');
@@ -326,7 +415,6 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
           {/* STEP 2: Show Prompt & Keywords, Select Websites */}
           {step === 2 && (
             <div>
-              {/* Prompt */}
               {currentPrompt && (
                 <div style={{ marginBottom: '24px', padding: '12px', backgroundColor: '#fff9e6', borderRadius: '6px', border: '1px solid #ffe699' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px', color: '#cc8800' }}>Prompt</h3>
@@ -336,7 +424,6 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
                 </div>
               )}
 
-              {/* Keywords */}
               <div style={{ marginBottom: '24px' }}>
                 <h2 style={{ fontSize: '16px', fontWeight: '500', marginBottom: '12px' }}>Keywords for "{expandedTopic}"</h2>
                 <div style={{ padding: '12px', backgroundColor: '#f0f0f0', borderRadius: '6px' }}>
@@ -359,7 +446,6 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
                 </div>
               </div>
 
-              {/* Saved Lists */}
               {savedLists.length > 0 && (
                 <div style={{ marginBottom: '24px', padding: '12px', backgroundColor: '#f0f9ff', borderRadius: '6px', border: '1px solid #cce5ff' }}>
                   <h3 style={{ fontSize: '14px', fontWeight: '500', marginBottom: '12px', color: '#0066cc' }}>Quick load a saved list</h3>
@@ -399,7 +485,6 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
                 </div>
               )}
 
-              {/* Filter */}
               <div style={{ marginBottom: '12px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', fontSize: '14px' }}>Filter websites</label>
                 <input
@@ -417,7 +502,6 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
                 />
               </div>
 
-              {/* Select All / None */}
               <div style={{ marginBottom: '12px', display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <button
@@ -452,7 +536,6 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
                 </span>
               </div>
 
-              {/* Websites List */}
               {loadingWebsites ? (
                 <div style={{ textAlign: 'center', color: '#666', padding: '24px' }}>Loading websites...</div>
               ) : (
@@ -489,7 +572,6 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
                 </div>
               )}
 
-              {/* Save List Form */}
               {selectedWebsites.size > 0 && (
                 <div style={{ marginBottom: '24px', padding: '12px', backgroundColor: '#f0f9ff', borderRadius: '6px', border: '1px solid #cce5ff' }}>
                   {!showSaveForm ? (
@@ -564,7 +646,6 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
                 </div>
               )}
 
-              {/* Action Buttons */}
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
                   onClick={() => setStep(1)}
@@ -619,9 +700,64 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
                 wordWrap: 'break-word',
                 fontSize: '13px',
                 lineHeight: '1.6',
+                maxHeight: '300px',
+                overflow: 'auto',
               }}>
                 {results.findings}
               </div>
+
+              {/* Export Buttons */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+                <button
+                  onClick={exportToExcel}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    backgroundColor: '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Export to Excel
+                </button>
+                <button
+                  onClick={exportToPDF}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    backgroundColor: '#dc3545',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Export to PDF
+                </button>
+              </div>
+
+              {parsedData.length > 0 && (
+                <div style={{ marginBottom: '24px', border: '1px solid #ddd', borderRadius: '6px', overflow: 'hidden' }}>
+                  <div style={{ padding: '12px', backgroundColor: '#f0f0f0', fontWeight: '500', fontSize: '14px' }}>
+                    Parsed Data ({parsedData.length} entries)
+                  </div>
+                  <div style={{ maxHeight: '300px', overflow: 'auto' }}>
+                    {parsedData.map((item, idx) => (
+                      <div key={idx} style={{ padding: '12px', borderBottom: idx < parsedData.length - 1 ? '1px solid #eee' : 'none' }}>
+                        <div style={{ fontWeight: '500', fontSize: '14px', marginBottom: '4px' }}>{item.companyName}</div>
+                        <div style={{ fontSize: '12px', color: '#0066cc', marginBottom: '4px' }}>{item.website}</div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>{item.summary}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <button
                 onClick={reset}
