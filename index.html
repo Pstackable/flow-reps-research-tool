@@ -19,8 +19,8 @@
     .alert-warning { background-color: #ffc; color: #630; border: 1px solid #fc0; }
     .form-group { margin-bottom: 24px; }
     .form-group label { display: block; margin-bottom: 8px; font-weight: 500; font-size: 14px; color: #333; }
-    input[type="text"] { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; margin-bottom: 12px; font-family: inherit; }
-    input[type="text"]:focus { outline: none; border-color: #0066cc; box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1); }
+    input[type="text"], input[type="number"] { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; margin-bottom: 12px; font-family: inherit; }
+    input:focus { outline: none; border-color: #0066cc; box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1); }
     button { padding: 12px 20px; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
     .btn-primary { background-color: #0066cc; color: white; }
     .btn-primary:hover:not(:disabled) { background-color: #0052a3; }
@@ -31,21 +31,20 @@
     .btn-download:hover:not(:disabled) { background-color: #218838; }
     .keywords { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; background-color: #f9f9f9; border-radius: 6px; border: 1px solid #eee; }
     .keyword { padding: 6px 12px; background-color: #e6f2ff; color: #0066cc; border-radius: 12px; font-size: 13px; font-weight: 500; }
-    .website-list { padding: 12px; background-color: #f9f9f9; border-radius: 6px; border: 1px solid #eee; max-height: 300px; overflow: auto; }
-    .website-item { font-size: 13px; padding: 10px 0; border-bottom: 1px solid #eee; }
-    .website-item:last-child { border-bottom: none; }
-    .website-name { font-weight: 500; color: #000; }
-    .website-domain { color: #0066cc; font-size: 12px; }
+    .website-selector { padding: 12px; background-color: #f9f9f9; border-radius: 6px; border: 1px solid #eee; max-height: 400px; overflow-y: auto; }
+    .website-checkbox { display: flex; align-items: center; padding: 8px 0; font-size: 13px; }
+    .website-checkbox input { margin-right: 8px; cursor: pointer; }
+    .website-checkbox label { cursor: pointer; flex: 1; }
     .results-table { width: 100%; border-collapse: collapse; background: white; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; margin-bottom: 24px; }
     .results-table thead { background-color: #333; color: white; }
-    .results-table th { padding: 12px; text-align: left; font-weight: 600; font-size: 13px; border-right: 1px solid #555; }
-    .results-table th:last-child { border-right: none; }
-    .results-table td { padding: 12px; border-right: 1px solid #eee; border-bottom: 1px solid #eee; font-size: 13px; }
-    .results-table td:last-child { border-right: none; }
-    .results-table tbody tr:last-child td { border-bottom: none; }
+    .results-table th { padding: 12px; text-align: left; font-weight: 600; font-size: 13px; }
+    .results-table td { padding: 12px; border-bottom: 1px solid #eee; font-size: 13px; }
     .results-table tbody tr:hover { background-color: #f9f9f9; }
-    .sme-alert { color: #c00; font-weight: 600; }
-    .button-group { display: flex; gap: 8px; }
+    .progress-container { margin-bottom: 24px; padding: 20px; background: white; border-radius: 8px; border: 1px solid #ddd; }
+    .progress-bar { width: 100%; height: 32px; background-color: #eee; border-radius: 6px; overflow: hidden; margin-bottom: 12px; }
+    .progress-fill { height: 100%; background-color: #0066cc; transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: 600; }
+    .progress-text { font-size: 14px; color: #666; }
+    .button-group { display: flex; gap: 8px; margin-top: 12px; }
     .button-group button { flex: 1; }
     h2 { font-size: 18px; font-weight: 600; margin-bottom: 12px; color: #000; }
     h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #333; }
@@ -65,94 +64,107 @@
     function App() {
       const [step, setStep] = useState(1);
       const [topic, setTopic] = useState('');
-      const [expandedTopic, setExpandedTopic] = useState(null);
       const [keywords, setKeywords] = useState([]);
       const [websites, setWebsites] = useState([]);
       const [selectedWebsites, setSelectedWebsites] = useState(new Set());
       const [results, setResults] = useState(null);
-      const [expandingTopic, setExpandingTopic] = useState(false);
+      const [expanding, setExpanding] = useState(false);
       const [searching, setSearching] = useState(false);
+      const [progress, setProgress] = useState({ current: 0, total: 0, current_company: '' });
       const [error, setError] = useState('');
-      const [loadingWebsites, setLoadingWebsites] = useState(true);
-      useEffect(() => { fetchWebsites(); }, []);
-      const fetchWebsites = async () => {
-        try {
-          const response = await fetch('https://flow-reps-research-tool-production.up.railway.app/websites');
-          if (!response.ok) throw new Error('Failed to load websites');
-          const data = await response.json();
-          setWebsites(data.websites || []);
-        } catch (err) {
-          setError(`Error loading websites: ${err.message}`);
-        } finally {
-          setLoadingWebsites(false);
-        }
-      };
-      const handleExpandTopic = async () => {
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        fetch('https://flow-reps-research-tool-production.up.railway.app/websites')
+          .then(r => r.json())
+          .then(d => setWebsites(d.websites || []))
+          .catch(e => setError(e.message))
+          .finally(() => setLoading(false));
+      }, []);
+
+      const expandTopic = async () => {
         if (!topic.trim()) { setError('Please enter a topic'); return; }
-        setExpandingTopic(true);
+        setExpanding(true);
         setError('');
         try {
-          const response = await fetch('https://flow-reps-research-tool-production.up.railway.app/research', {
+          const r = await fetch('https://flow-reps-research-tool-production.up.railway.app/research', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'expandTopic', topic: topic.trim() }),
+            body: JSON.stringify({ action: 'expandTopic', topic: topic.trim() })
           });
-          if (!response.ok) throw new Error('Failed to expand topic');
-          const data = await response.json();
-          const keywordArray = data.result.split(',').map(k => k.trim()).filter(k => k);
-          setExpandedTopic(topic);
-          setKeywords(keywordArray);
-          const newSet = new Set();
-          for (let i = 0; i < Math.min(10, websites.length); i++) { newSet.add(i); }
-          setSelectedWebsites(newSet);
+          const d = await r.json();
+          const kw = d.result.split(',').map(k => k.trim()).filter(k => k);
+          setKeywords(kw);
           setStep(2);
-        } catch (err) {
-          setError(`Error: ${err.message}`);
+        } catch (e) {
+          setError(e.message);
         } finally {
-          setExpandingTopic(false);
+          setExpanding(false);
         }
       };
-      const handleSearch = async () => {
-        if (selectedWebsites.size === 0) { setError('No websites selected'); return; }
+
+      const toggleWebsite = (idx) => {
+        const newSet = new Set(selectedWebsites);
+        if (newSet.has(idx)) {
+          newSet.delete(idx);
+        } else {
+          if (newSet.size < 10) {
+            newSet.add(idx);
+          } else {
+            setError('Max 10 websites selected');
+            return;
+          }
+        }
+        setSelectedWebsites(newSet);
+      };
+
+      const search = async () => {
+        if (selectedWebsites.size === 0) { setError('Select at least 1 website'); return; }
         setSearching(true);
         setError('');
+        setProgress({ current: 0, total: selectedWebsites.size, current_company: '' });
         try {
-          const selectedWebsitesList = Array.from(selectedWebsites).map(i => websites[i]);
-          const response = await fetch('https://flow-reps-research-tool-production.up.railway.app/research', {
+          const list = Array.from(selectedWebsites).map(i => websites[i]);
+          const r = await fetch('https://flow-reps-research-tool-production.up.railway.app/research', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'search', topic: expandedTopic, keywords, websites: selectedWebsitesList, }),
+            body: JSON.stringify({ action: 'search', topic: topic, keywords: keywords, websites: list })
           });
-          if (!response.ok) throw new Error('Search failed');
-          const data = await response.json();
-          setResults({ topic: expandedTopic, results: data.results, rawResults: data.rawResults, keywords, searchDate: data.searchDate, websiteCount: selectedWebsitesList.length, });
+          const d = await r.json();
+          setResults({ topic: topic, results: d.results, searchDate: new Date().toLocaleDateString(), websiteCount: list.length });
           setStep(3);
-        } catch (err) {
-          setError(`Search error: ${err.message}`);
-        } finally {
+          setSearching(false);
+        } catch (e) {
+          setError(e.message);
           setSearching(false);
         }
       };
+
       const downloadExcel = () => {
         if (!results) return;
-        const excelData = results.results.map(result => ({ 'Company Name': result.companyName, 'Website': result.domain, 'Summary': result.summary, 'Date Update Found': result.dateFound, 'Citation Links': result.citationLinks, }));
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(excelData);
-        ws['!cols'] = [{ wch: 25 }, { wch: 30 }, { wch: 50 }, { wch: 18 }, { wch: 40 }];
-        XLSX.utils.book_append_sheet(wb, ws, 'Research Results');
-        const timestamp = new Date().toISOString().split('T')[0];
-        const filename = `Research_Results_${results.topic.replace(/\s+/g, '_')}_${timestamp}.xlsx`;
-        XLSX.writeFile(wb, filename);
+        try {
+          const data = results.results.map(r => ({ 'Company Name': r.companyName, 'Website': r.domain, 'Summary': r.summary, 'Date': r.dateFound, 'Links': r.citationLinks }));
+          const wb = XLSX.utils.book_new();
+          const ws = XLSX.utils.json_to_sheet(data);
+          ws['!cols'] = [{ wch: 25 }, { wch: 30 }, { wch: 50 }, { wch: 18 }, { wch: 40 }];
+          XLSX.utils.book_append_sheet(wb, ws, 'Results');
+          const ts = new Date().toISOString().split('T')[0];
+          XLSX.writeFile(wb, `Results_${results.topic.replace(/\s+/g, '_')}_${ts}.xlsx`);
+        } catch (e) {
+          setError('Excel error: ' + e.message);
+        }
       };
-      const handleReset = () => {
+
+      const reset = () => {
         setStep(1);
         setTopic('');
-        setExpandedTopic(null);
         setKeywords([]);
         setSelectedWebsites(new Set());
         setResults(null);
+        setProgress({ current: 0, total: 0, current_company: '' });
         setError('');
       };
+
       return (
         <div className="container">
           <div className="header">
@@ -160,9 +172,114 @@
             <span className="badge">BETA</span>
           </div>
           {error && <div className="alert alert-error">{error}</div>}
-          {step === 1 && (<div>{loadingWebsites && <div className="alert alert-info">⏳ Loading websites...</div>}<div className="form-group"><label>What are you researching?</label><input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleExpandTopic()} placeholder="e.g., ball valves, liquid cooling, piping systems" disabled={expandingTopic} /><button className="btn-primary" onClick={handleExpandTopic} disabled={expandingTopic || !topic.trim()}>{expandingTopic ? <><span className="spinner"></span> Expanding...</> : 'Expand topic'}</button></div><div className="alert alert-info"><strong>💡 How it works:</strong><br/>1. Enter a research topic<br/>2. We'll expand it into keywords<br/>3. Auto-select the first 10 companies<br/>4. Search their websites for related content<br/>5. Download results as Excel file</div></div>)}
-          {step === 2 && (<div><div className="alert alert-warning"><strong>📋 Test Mode:</strong> Auto-selected first {selectedWebsites.size} websites (total: {websites.length})</div><div className="form-group"><h2>Keywords for "{expandedTopic}"</h2><div className="keywords">{keywords.length > 0 ? (keywords.map((kw, idx) => <span key={idx} className="keyword">{kw}</span>)) : (<span style={{ color: '#666' }}>No keywords</span>)}</div></div><div className="form-group"><h3>Selected Companies ({selectedWebsites.size})</h3><div className="website-list">{selectedWebsites.size > 0 ? (Array.from(selectedWebsites).map(idx => (<div key={idx} className="website-item"><div className="website-name">✓ {websites[idx]?.name}</div><div className="website-domain">{websites[idx]?.domain}</div></div>))) : (<div style={{ color: '#666' }}>No websites selected</div>)}</div></div><div className="button-group"><button className="btn-secondary" onClick={() => setStep(1)}>Back</button><button className="btn-primary" onClick={handleSearch} disabled={searching || selectedWebsites.size === 0}>{searching ? <><span className="spinner"></span> Searching...</> : 'Search'}</button></div></div>)}
-          {step === 3 && results && (<div><div className="alert alert-success"><strong>✓ Search Complete!</strong> Searched {results.websiteCount} companies • {results.results.length} results</div><div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><h2>Results for "{results.topic}"</h2><p>{results.searchDate}</p></div><button className="btn-download" onClick={downloadExcel}>📥 Download Excel</button></div><div style={{ overflowX: 'auto' }}><table className="results-table"><thead><tr><th>Company Name</th><th>Website</th><th>Summary</th><th>Date Update Found</th><th>Citation Links</th></tr></thead><tbody>{results.results.map((result, idx) => (<tr key={idx}><td><strong>{result.companyName}</strong></td><td><a href={`https://${result.domain}`} target="_blank" rel="noopener noreferrer" style={{ color: '#0066cc' }}>{result.domain}</a></td><td>{result.summary.startsWith('SME ALERT') ? <span className="sme-alert">{result.summary}</span> : result.summary}</td><td>{result.dateFound}</td><td>{result.citationLinks}</td></tr>))}</tbody></table></div><div className="button-group"><button className="btn-secondary" onClick={handleReset}>Search another topic</button><button className="btn-download" onClick={downloadExcel}>📥 Download Excel</button></div></div>)}
+
+          {step === 1 && (
+            <div>
+              {loading && <div className="alert alert-info">⏳ Loading websites...</div>}
+              <div className="form-group">
+                <label>Research Topic</label>
+                <input type="text" value={topic} onChange={e => setTopic(e.target.value)} onKeyPress={e => e.key === 'Enter' && expandTopic()} placeholder="e.g., liquid cooling, ball valves" disabled={expanding} />
+                <button className="btn-primary" onClick={expandTopic} disabled={expanding || !topic.trim()}>
+                  {expanding ? <><span className="spinner"></span> Expanding...</> : 'Expand topic'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div>
+              <div className="form-group">
+                <h2>Keywords for "{topic}"</h2>
+                <div className="keywords">
+                  {keywords.length > 0 ? keywords.map((k, i) => <span key={i} className="keyword">{k}</span>) : <span style={{ color: '#666' }}>No keywords</span>}
+                </div>
+              </div>
+
+              <div className="form-group">
+                <h3>Select Websites (up to 10)</h3>
+                <p style={{ marginBottom: '12px' }}>Selected: {selectedWebsites.size}/10</p>
+                <div className="website-selector">
+                  {websites.map((w, i) => (
+                    <div key={i} className="website-checkbox">
+                      <input 
+                        type="checkbox" 
+                        id={`site-${i}`}
+                        checked={selectedWebsites.has(i)} 
+                        onChange={() => toggleWebsite(i)}
+                        disabled={!selectedWebsites.has(i) && selectedWebsites.size >= 10}
+                      />
+                      <label htmlFor={`site-${i}`}>
+                        <strong>{w.name}</strong><br/>
+                        <span style={{color: '#0066cc', fontSize: '12px'}}>{w.domain}</span>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="button-group">
+                <button className="btn-secondary" onClick={() => setStep(1)}>Back</button>
+                <button className="btn-primary" onClick={search} disabled={searching || selectedWebsites.size === 0}>
+                  {searching ? <><span className="spinner"></span> Searching...</> : `Search ${selectedWebsites.size} Sites`}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {searching && (
+            <div className="progress-container">
+              <h2>Searching... {progress.current}/{progress.total}</h2>
+              <div className="progress-bar">
+                <div className="progress-fill" style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}>
+                  {progress.total > 0 ? Math.round((progress.current / progress.total) * 100) + '%' : ''}
+                </div>
+              </div>
+              <p className="progress-text">📍 {progress.current_company || 'Starting...'}</p>
+            </div>
+          )}
+
+          {step === 3 && results && !searching && (
+            <div>
+              <div className="alert alert-success">
+                <strong>✓ Complete!</strong> {results.results.length} results from {results.websiteCount} companies
+              </div>
+              <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h2>{results.topic}</h2>
+                  <p>{results.searchDate}</p>
+                </div>
+                <button className="btn-download" onClick={downloadExcel}>📥 Download Excel</button>
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="results-table">
+                  <thead>
+                    <tr>
+                      <th>Company</th>
+                      <th>Website</th>
+                      <th>Summary</th>
+                      <th>Date</th>
+                      <th>Links</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {results.results.map((r, i) => (
+                      <tr key={i}>
+                        <td><strong>{r.companyName}</strong></td>
+                        <td><a href={`https://${r.domain}`} target="_blank" rel="noopener" style={{ color: '#0066cc' }}>{r.domain}</a></td>
+                        <td>{r.summary}</td>
+                        <td>{r.dateFound}</td>
+                        <td>{r.citationLinks}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="button-group">
+                <button className="btn-secondary" onClick={reset}>New Search</button>
+                <button className="btn-download" onClick={downloadExcel}>📥 Download Excel</button>
+              </div>
+            </div>
+          )}
         </div>
       );
     }
