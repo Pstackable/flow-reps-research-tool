@@ -53,7 +53,7 @@ Search these websites for this topic. For each website provide:
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'pplx-7b-chat',
+        model: 'pplx-70b-online',
         messages: [{
           role: 'user',
           content: prompt
