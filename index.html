@@ -37,11 +37,16 @@
       useEffect(() => {
         const fetchWebsites = async () => {
           try {
+            console.log('Fetching websites...');
             const response = await fetch('https://flow-reps-research-tool-production.up.railway.app/websites');
+            console.log('Response status:', response.status);
             if (!response.ok) throw new Error('Failed to fetch websites');
             const data = await response.json();
+            console.log('Websites loaded:', data.websites?.length, 'websites');
+            console.log('First website sample:', data.websites?.[0]);
             setWebsites(data.websites || []);
           } catch (err) {
+            console.error('Error loading websites:', err);
             setError(`Error loading websites: ${err.message}`);
           } finally {
             setLoadingWebsites(false);
@@ -90,6 +95,7 @@
 
         try {
           const selectedWebsitesList = Array.from(selectedWebsites).map(i => websites[i]);
+          console.log('Sending search for websites:', selectedWebsitesList);
 
           const response = await fetch('https://flow-reps-research-tool-production.up.railway.app/research', {
             method: 'POST',
@@ -108,13 +114,14 @@
           setResults({
             topic: expandedTopic,
             findings: data.result,
-            websiteList: selectedWebsitesList.map(w => w.name).join(', '),
+            websiteList: selectedWebsitesList.map(w => `${w.name} (${w.domain})`).join('\n'),
             websiteCount: selectedWebsitesList.length,
             timestamp: new Date().toLocaleString(),
           });
 
           setStep(3);
         } catch (err) {
+          console.error('Search error:', err);
           setError(`Search error: ${err.message}`);
         } finally {
           setSearching(false);
@@ -142,6 +149,8 @@
 
           {step === 1 && (
             <div>
+              {loadingWebsites && <div style={{ padding: '12px', backgroundColor: '#d1ecf1', color: '#0c5460', borderRadius: '6px', marginBottom: '12px' }}>Loading {websites.length} websites...</div>}
+              
               <div style={{ marginBottom: '24px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', fontSize: '14px' }}>Research topic</label>
                 <input type="text" value={topic} onChange={(e) => setTopic(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && expandTopic()} placeholder="e.g., Liquid cooling for data centers" style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', marginBottom: '12px' }} />
@@ -155,22 +164,31 @@
           {step === 2 && (
             <div>
               <div style={{ marginBottom: '24px', padding: '12px', backgroundColor: '#fff3cd', borderRadius: '6px', border: '1px solid #ffc107' }}>
-                <strong>ℹ️ TEST MODE:</strong> Automatically selected first 10 websites
+                <strong>ℹ️ TEST MODE:</strong> Auto-selected first 10 websites (total available: {websites.length})
               </div>
 
               <div style={{ marginBottom: '24px' }}>
                 <h2 style={{ fontSize: '16px', fontWeight: '500', marginBottom: '12px' }}>Keywords for "{expandedTopic}"</h2>
                 <div style={{ padding: '12px', backgroundColor: '#f0f0f0', borderRadius: '6px' }}>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                    {keywords.map((kw, idx) => <span key={idx} style={{ padding: '6px 12px', backgroundColor: '#e6f2ff', color: '#0066cc', borderRadius: '12px', fontSize: '13px' }}>{kw}</span>)}
+                    {keywords.length > 0 ? keywords.map((kw, idx) => <span key={idx} style={{ padding: '6px 12px', backgroundColor: '#e6f2ff', color: '#0066cc', borderRadius: '12px', fontSize: '13px' }}>{kw}</span>) : <span style={{ color: '#666' }}>No keywords</span>}
                   </div>
                 </div>
               </div>
 
               <div style={{ marginBottom: '24px' }}>
                 <h3 style={{ fontSize: '14px', fontWeight: '500', marginBottom: '12px' }}>Selected Websites ({selectedWebsites.size}):</h3>
-                <div style={{ padding: '12px', backgroundColor: '#f9f9f9', borderRadius: '6px', border: '1px solid #ddd' }}>
-                  {Array.from(selectedWebsites).map(idx => <div key={idx} style={{ fontSize: '13px', padding: '4px 0' }}>✓ {websites[idx]?.name}</div>)}
+                <div style={{ padding: '12px', backgroundColor: '#f9f9f9', borderRadius: '6px', border: '1px solid #ddd', maxHeight: '300px', overflow: 'auto' }}>
+                  {selectedWebsites.size > 0 ? (
+                    Array.from(selectedWebsites).map(idx => (
+                      <div key={idx} style={{ fontSize: '12px', padding: '8px 0', borderBottom: '1px solid #eee' }}>
+                        ✓ <strong>{websites[idx]?.name}</strong><br/>
+                        <span style={{ color: '#0066cc' }}>{websites[idx]?.domain}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ color: '#666' }}>No websites selected</div>
+                  )}
                 </div>
               </div>
 
@@ -196,7 +214,7 @@
 
               <div style={{ marginBottom: '24px', padding: '12px', backgroundColor: '#f0f0f0', borderRadius: '6px' }}>
                 <strong style={{ fontSize: '13px' }}>Websites searched:</strong>
-                <p style={{ fontSize: '12px', color: '#666', margin: '8px 0 0 0' }}>{results.websiteList}</p>
+                <pre style={{ fontSize: '12px', color: '#666', margin: '8px 0 0 0', whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>{results.websiteList}</pre>
               </div>
 
               <div style={{ border: '2px solid #333', borderRadius: '6px', marginBottom: '24px', overflow: 'hidden' }}>
