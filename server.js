@@ -80,9 +80,14 @@ function parseResultForExcel(rawResult, website) {
   let citationLinks = '';
 
   for (const line of lines) {
+    // Skip template text rows
+    if (line.includes('[What was found') || line.includes('[Direct URLs') || line.includes('Company Name') || line.includes('Domain')) {
+      continue;
+    }
+    
     if (line.includes('|')) {
       const parts = line.split('|').map(p => p.trim());
-      if (parts.length >= 3) {
+      if (parts.length >= 3 && !parts[0].includes('[') && !parts[0].includes('Company')) {
         companyName = parts[0] || website.name;
         domain = parts[1] || website.domain;
         summary = parts[2] || '';
@@ -92,8 +97,14 @@ function parseResultForExcel(rawResult, website) {
     }
   }
 
-  if (!summary || summary.toLowerCase().includes('error')) {
-    summary = rawResult.substring(0, 300);
+  // Clean up summary - remove template-like text
+  if (summary.includes('[What was found') || summary.includes('[Direct URLs') || !summary.trim()) {
+    summary = rawResult.substring(0, 300).replace(/\[.*?\]/g, '');
+  }
+
+  if (!summary || summary.toLowerCase().includes('error') || summary.includes('[')) {
+    summary = 'No relevant content found';
+    citationLinks = 'N/A';
   }
 
   return {
@@ -217,8 +228,8 @@ Do not add any other commentary.`;
         }
 
         if (i < cappedWebsites.length - 1) {
-          log('INFO', `${progress} Waiting 7 seconds before next search...`);
-          await delay(7000);
+          log('INFO', `${progress} Waiting 5 seconds before next search...`);
+          await delay(5000);
         }
       }
 
