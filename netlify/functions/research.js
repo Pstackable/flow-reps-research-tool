@@ -8,12 +8,12 @@ exports.handler = async (event) => {
 
   try {
     const { action, topic, keywords, websites } = JSON.parse(event.body);
-    const apiKey = process.env.CLAUDE_API_KEY;
+    const apiKey = process.env.PERPLEXITY_API_KEY;
 
     if (!apiKey) {
       return { 
         statusCode: 500, 
-        body: JSON.stringify({ error: 'Missing API key' })
+        body: JSON.stringify({ error: 'Missing Perplexity API key' })
       };
     }
 
@@ -40,37 +40,37 @@ Search these websites for this topic. For each website provide:
 3. SME Alert (if applicable, format: "SME ALERT: EXPERTISE TYPE")`;
     }
 
-    const apiResponse = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-6',
-        max_tokens: 2000,
+        model: 'pplx-7b-chat',
         messages: [{
           role: 'user',
           content: prompt
-        }]
+        }],
+        max_tokens: 2000
       })
     });
 
-    if (!apiResponse.ok) {
-      const err = await apiResponse.json();
+    if (!response.ok) {
+      const err = await response.json();
       return {
-        statusCode: apiResponse.status,
-        body: JSON.stringify({ error: err.error?.message || 'API error' })
+        statusCode: response.status,
+        body: JSON.stringify({ error: err.error?.message || 'Perplexity API error' })
       };
     }
 
-    const result = await apiResponse.json();
-    const text = result.content[0]?.text;
+    const result = await response.json();
+    const text = result.choices[0]?.message?.content;
 
     if (!text) {
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'No response from Claude' })
+        body: JSON.stringify({ error: 'No response from Perplexity' })
       };
     }
 
