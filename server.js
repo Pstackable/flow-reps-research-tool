@@ -25,6 +25,9 @@ const log = (type, msg) => {
   console.log(`[${timestamp}] [${type}] ${msg}`);
 };
 
+// Helper to delay execution
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 // ============================================================================
 // HEALTH CHECK
 // ============================================================================
@@ -138,10 +141,45 @@ app.post('/save-list', async (req, res) => {
 });
 
 // ============================================================================
-// RESEARCH ENDPOINT - THE MAIN LOGIC
+// CALL PERPLEXITY API - HELPER FUNCTION
+// ============================================================================
+async function callPerplexity(prompt) {
+  if (!PERPLEXITY_API_KEY) {
+    throw new Error('Missing Perplexity API key');
+  }
+
+  const response = await fetch('https://api.perplexity.ai/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'sonar-pro',
+      messages: [{
+        role: 'user',
+        content: prompt
+      }],
+      max_tokens: 2000,
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json();
+    throw new Error(err.error?.message || response.statusText);
+  }
+
+  const result = await response.json();
+  return result.choices[0]?.message?.content;
+}
+
+// ============================================================================
+// RESEARCH ENDPOINT - MAIN LOGIC
 // ============================================================================
 app.post('/research', async (req, res) => {
+  log('INFO', '='.repeat(70));
   log('INFO', 'Research request received');
+  log('INFO', '='.repeat(70));
   
   try {
     const { action, topic, keywords, websites } = req.body;
@@ -151,114 +189,115 @@ app.post('/research', async (req, res) => {
       return res.status(500).json({ error: 'Missing Perplexity API key' });
     }
 
-    let prompt = '';
-
     // ========================================================================
     // ACTION 1: EXPAND TOPIC INTO KEYWORDS
     // ========================================================================
     if (action === 'expandTopic') {
-      log('INFO', `Expanding topic: "${topic}"`);
+      log('INFO', `Action: expandTopic`);
+      log('INFO', `Topic: "${topic}"`);
       
-      prompt = `Topic: "${topic}"
+      const prompt = `Topic: "${topic}"
 
 Generate 8-12 relevant keywords for researching this topic on company websites.
 
 Return ONLY a comma-separated list. Nothing else.`;
-    } 
+
+      try {
+        const text = await callPerplexity(prompt);
+        log('SUCCESS', `Keywords generated: ${text}`);
+        return res.status(200).json({ result: text });
+      } catch (error) {
+        log('ERROR', `Perplexity error: ${error.message}`);
+        return res.status(500).json({ error: error.message });
+      }
+    }
 
     // ========================================================================
-    // ACTION 2: SEARCH WEBSITES FOR TOPIC
+    // ACTION 2: SEARCH EACH WEBSITE INDIVIDUALLY
     // ========================================================================
     else if (action === 'search') {
-      log('INFO', `Searching ${websites.length} websites for topic: "${topic}"`);
+      log('INFO', `Action: search`);
+      log('INFO', `Topic: "${topic}"`);
       log('INFO', `Keywords: ${keywords.join(', ')}`);
+      log('INFO', `Websites: ${websites.length}`);
       
       if (!Array.isArray(websites) || websites.length === 0) {
         log('ERROR', 'No websites provided');
         return res.status(400).json({ error: 'No websites provided' });
       }
 
-      // Build the site: queries for Perplexity to search
-      const siteQueries = websites.map(w => `site:${w.domain}`).join(' OR ');
-      const domainsList = websites.map(w => w.domain).join(', ');
-      const companyList = websites.map(w => `${w.name} (${w.domain})`).join('\n');
+      const allResults = [];
       const keywordsList = keywords.join(', ');
 
-      log('INFO', `Building search prompt for domains: ${domainsList}`);
+      log('INFO', 'Starting individual website searches...');
+      log('INFO', '='.repeat(70));
 
-      prompt = `You are a research assistant. Search the following company websites for information related to: "${topic}"
+      // Search each website one at a time
+      for (let i = 0; i < websites.length; i++) {
+        const website = websites[i];
+        const progress = `[${i + 1}/${websites.length}]`;
+        
+        log('INFO', `${progress} Searching: ${website.name} (${website.domain})`);
 
-WEBSITES TO SEARCH:
-${companyList}
+        try {
+          const searchPrompt = `Search the website ${website.domain} for information about: "${topic}"
 
-SEARCH QUERIES TO USE:
-${siteQueries}
+Company Name: ${website.name}
+Website Domain: ${website.domain}
 
-KEYWORDS TO LOOK FOR:
-${keywordsList}
+Keywords to search for: ${keywordsList}
 
-INSTRUCTIONS:
-1. Use the site: queries above to force searching on those specific domains only
-2. For each website, search for content related to "${topic}" and the keywords listed
-3. Report findings from each domain separately
-4. For each company, provide:
-   - Company Name and Domain
-   - 1-3 sentence summary of what was found
-   - If data center engineering content is found, start with "SME ALERT: DATA CENTER ENGINEERING"
-   - Reference links if available
+Your task:
+1. Search this specific website for content related to "${topic}"
+2. Look for the keywords mentioned
+3. Provide findings in this format:
 
-FORMAT YOUR RESPONSE AS:
-COMPANY NAME | DOMAIN | SUMMARY | REFERENCES
+${website.name} | ${website.domain} | [1-3 sentence summary of what you found] | [reference links if available]
 
-CRITICAL: If NO relevant information is found on ANY of the websites, respond ONLY with: "No Updates Found"
+Important:
+- If you find data center engineering content, start the summary with "SME ALERT: DATA CENTER ENGINEERING"
+- Be specific about what you found
+- Include direct quotes or specific details
+- If nothing relevant found, respond: "${website.name} | ${website.domain} | No relevant content found | N/A"
 
-Do NOT use your training data. Only report what you find by searching these specific domains.`;
+Search now and report findings:`;
 
-      log('INFO', 'Prompt built, sending to Perplexity');
+          const text = await callPerplexity(searchPrompt);
+          
+          if (text && !text.toLowerCase().includes('no relevant content')) {
+            log('SUCCESS', `${progress} Found content for ${website.name}`);
+            allResults.push(text);
+          } else {
+            log('INFO', `${progress} No content found for ${website.name}`);
+            allResults.push(`${website.name} | ${website.domain} | No relevant content found | N/A`);
+          }
+
+        } catch (error) {
+          log('ERROR', `${progress} Error searching ${website.name}: ${error.message}`);
+          allResults.push(`${website.name} | ${website.domain} | Search error: ${error.message} | N/A`);
+        }
+
+        // Delay before next request (500ms) to avoid rate limiting
+        if (i < websites.length - 1) {
+          log('INFO', `${progress} Waiting 500ms before next search...`);
+          await delay(500);
+        }
+      }
+
+      log('INFO', '='.repeat(70));
+      log('SUCCESS', 'All searches complete');
+      log('INFO', `Total results collected: ${allResults.length}`);
+
+      const finalResult = allResults.join('\n\n---\n\n');
+
+      return res.status(200).json({ result: finalResult });
     }
 
-    // ========================================================================
-    // CALL PERPLEXITY API
-    // ========================================================================
-    log('INFO', `Calling Perplexity API with model: sonar-pro`);
-    
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'sonar-pro',
-        messages: [{
-          role: 'user',
-          content: prompt
-        }],
-        max_tokens: 4000,
-        temperature: 0.7,
-      })
-    });
-
-    if (!response.ok) {
-      const err = await response.json();
-      log('ERROR', `Perplexity API error: ${err.error?.message || response.statusText}`);
-      return res.status(response.status).json({ 
-        error: err.error?.message || 'Perplexity API error' 
-      });
+    // If neither action is recognized
+    else {
+      log('ERROR', `Unknown action: ${action}`);
+      return res.status(400).json({ error: 'Unknown action' });
     }
-
-    const result = await response.json();
-    const text = result.choices[0]?.message?.content;
-
-    if (!text) {
-      log('ERROR', 'No response content from Perplexity');
-      return res.status(500).json({ error: 'No response from Perplexity' });
-    }
-
-    log('SUCCESS', `Got response from Perplexity (${text.length} characters)`);
-    log('INFO', `Response preview: ${text.substring(0, 100)}...`);
-
-    return res.status(200).json({ result: text });
 
   } catch (error) {
     log('ERROR', `Research endpoint error: ${error.message}`);
@@ -271,7 +310,9 @@ Do NOT use your training data. Only report what you find by searching these spec
 // ============================================================================
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
+  log('INFO', '='.repeat(70));
   log('INFO', `🚀 Server running on port ${PORT}`);
   log('INFO', `Environment: ${process.env.NODE_ENV || 'development'}`);
   log('INFO', `Perplexity API Key: ${PERPLEXITY_API_KEY ? '✓ Set' : '✗ Missing'}`);
+  log('INFO', '='.repeat(70));
 });
