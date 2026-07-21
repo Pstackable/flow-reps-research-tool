@@ -142,45 +142,39 @@ async function saveSearchToSupabase(topic, keywords, websites, results) {
   }
 }
 
-app.post('/research', async (req, res) => {
+// GET endpoint for SSE (EventSource uses GET only)
+app.get('/research-stream', async (req, res) => {
   log('INFO', '='.repeat(70));
-  log('INFO', 'Research request received');
+  log('INFO', 'Stream research request received (GET)');
   log('INFO', '='.repeat(70));
 
   try {
-    const { action, topic, keywords, websites, customPrompt } = req.body;
+    const action = req.query.action;
+    const topic = req.query.topic;
+    const keywords = JSON.parse(req.query.keywords || '[]');
+    const websites = JSON.parse(req.query.websites || '[]');
+    const customPrompt = req.query.customPrompt || '';
 
     if (!PERPLEXITY_API_KEY) {
-      log('ERROR', 'PERPLEXITY_API_KEY not set in environment');
-      return res.status(500).json({ error: 'Missing Perplexity API key' });
+      log('ERROR', 'PERPLEXITY_API_KEY not set');
+      res.write(`data: ${JSON.stringify({ type: 'error', error: 'Missing Perplexity API key' })}\n\n`);
+      return res.end();
     }
 
-    if (action === 'expandTopic') {
-      log('INFO', `Action: expandTopic`);
-      log('INFO', `Topic: "${topic}"`);
-      const prompt = `Generate 8-12 relevant keywords for researching this topic on company websites in the PVF (pipe, valves, fittings) industry and data center engineering.
+    // SSE Headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', '*');
 
-Topic: "${topic}"
-
-Return ONLY a comma-separated list. Nothing else.`;
-      try {
-        const text = await callPerplexity(prompt);
-        log('SUCCESS', `Keywords generated: ${text}`);
-        return res.status(200).json({ result: text });
-      } catch (error) {
-        log('ERROR', `Perplexity error: ${error.message}`);
-        return res.status(500).json({ error: error.message });
-      }
-    }
-    else if (action === 'search') {
+    if (action === 'search') {
       log('INFO', `Action: search`);
       log('INFO', `Topic: "${topic}"`);
-      log('INFO', `Keywords: ${keywords.join(', ')}`);
       log('INFO', `Websites: ${websites.length}`);
 
       if (!Array.isArray(websites) || websites.length === 0) {
-        log('ERROR', 'No websites provided');
-        return res.status(400).json({ error: 'No websites provided' });
+        res.write(`data: ${JSON.stringify({ type: 'error', error: 'No websites provided' })}\n\n`);
+        return res.end();
       }
 
       const cappedWebsites = websites.slice(0, 100);
@@ -193,6 +187,15 @@ Return ONLY a comma-separated list. Nothing else.`;
         const website = cappedWebsites[i];
         const progress = `[${i + 1}/${cappedWebsites.length}]`;
         log('INFO', `${progress} Searching: ${website.name} (${website.domain})`);
+
+        // Send progress update
+        res.write(`data: ${JSON.stringify({ 
+          type: 'progress', 
+          current: i + 1, 
+          total: cappedWebsites.length, 
+          current_company: website.name,
+          current_domain: website.domain
+        })}\n\n`);
 
         try {
           const searchPrompt = customPrompt.replace(/{{website_url}}/g, website.domain).replace(/{{website_name}}/g, website.name);
@@ -226,12 +229,57 @@ Return ONLY a comma-separated list. Nothing else.`;
 
       await saveSearchToSupabase(topic, keywords, cappedWebsites, parsedResults);
 
-      return res.status(200).json({
+      // Send completion with results
+      res.write(`data: ${JSON.stringify({
+        type: 'complete',
         results: parsedResults,
         topic,
         keywords,
         searchDate: new Date().toLocaleDateString(),
-      });
+      })}\n\n`);
+      
+      res.end();
+    } else {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: 'Unknown action' })}\n\n`);
+      res.end();
+    }
+  } catch (error) {
+    log('ERROR', `Stream endpoint error: ${error.message}`);
+    res.write(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`);
+    res.end();
+  }
+});
+
+// POST endpoint for expandTopic (doesn't need SSE)
+app.post('/research', async (req, res) => {
+  log('INFO', '='.repeat(70));
+  log('INFO', 'Research request received');
+  log('INFO', '='.repeat(70));
+
+  try {
+    const { action, topic, keywords, websites, customPrompt } = req.body;
+
+    if (!PERPLEXITY_API_KEY) {
+      log('ERROR', 'PERPLEXITY_API_KEY not set in environment');
+      return res.status(500).json({ error: 'Missing Perplexity API key' });
+    }
+
+    if (action === 'expandTopic') {
+      log('INFO', `Action: expandTopic`);
+      log('INFO', `Topic: "${topic}"`);
+      const prompt = `Generate 8-12 relevant keywords for researching this topic on company websites in the PVF (pipe, valves, fittings) industry and data center engineering.
+
+Topic: "${topic}"
+
+Return ONLY a comma-separated list. Nothing else.`;
+      try {
+        const text = await callPerplexity(prompt);
+        log('SUCCESS', `Keywords generated: ${text}`);
+        return res.status(200).json({ result: text });
+      } catch (error) {
+        log('ERROR', `Perplexity error: ${error.message}`);
+        return res.status(500).json({ error: error.message });
+      }
     }
     else {
       log('ERROR', `Unknown action: ${action}`);
