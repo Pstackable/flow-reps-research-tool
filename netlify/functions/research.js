@@ -1,5 +1,5 @@
 exports.handler = async (event) => {
-  console.log('Function called with event:', event);
+  console.log('Function called');
   
   if (event.httpMethod !== 'POST') {
     return { 
@@ -12,12 +12,8 @@ exports.handler = async (event) => {
   try {
     const body = JSON.parse(event.body);
     const { action, topic, keywords, websites } = body;
-    
-    console.log('Parsed request:', { action, topic, keywords, websites });
 
     const apiKey = process.env.CLAUDE_API_KEY;
-    console.log('API Key exists:', !!apiKey);
-    console.log('API Key starts with:', apiKey ? apiKey.substring(0, 10) : 'MISSING');
 
     if (!apiKey) {
       return { 
@@ -58,46 +54,47 @@ Format SME alerts like: "SME ALERT: [EXPERTISE TYPE]"
 Be thorough but concise.`;
     }
 
-    console.log('Prompt prepared, calling Claude API...');
-
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'content-type': 'application/json',
         'x-api-key': apiKey,
-        'anthropic-version': '2024-04-01',
+        'anthropic-version': '2024-12-01',
       },
       body: JSON.stringify({
         model: 'claude-opus-4-6',
         max_tokens: action === 'expandTopic' ? 500 : 2000,
-        messages: [{ role: 'user', content: prompt }],
+        messages: [
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
       }),
     });
 
-    console.log('Claude API response status:', response.status);
+    console.log('Response status:', response.status);
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.log('Claude API error:', errorData);
+      console.error('API Error:', errorData);
       
       return { 
         statusCode: response.status, 
         body: JSON.stringify({ 
-          error: errorData.error?.message || 'Claude API request failed',
-          status: response.status,
-          details: errorData 
+          error: errorData.error?.message || 'Claude API failed',
+          details: errorData
         }),
         headers: { 'Content-Type': 'application/json' }
       };
     }
 
     const data = await response.json();
-    console.log('Claude API success, response:', data);
 
-    if (!data.content || !data.content[0] || !data.content[0].text) {
+    if (!data.content || !data.content[0]) {
       return { 
         statusCode: 500, 
-        body: JSON.stringify({ error: 'Unexpected response format from Claude API' }),
+        body: JSON.stringify({ error: 'Invalid response from Claude API' }),
         headers: { 'Content-Type': 'application/json' }
       };
     }
@@ -109,15 +106,12 @@ Be thorough but concise.`;
     };
 
   } catch (error) {
-    console.error('Catch error:', error);
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
+    console.error('Error:', error);
     
     return { 
       statusCode: 500, 
       body: JSON.stringify({ 
-        error: error.message,
-        type: error.constructor.name 
+        error: error.message
       }),
       headers: { 'Content-Type': 'application/json' }
     };
