@@ -1,14 +1,30 @@
 exports.handler = async (event) => {
+  console.log('Function called with event:', event);
+  
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
+    return { 
+      statusCode: 405, 
+      body: JSON.stringify({ error: 'Method Not Allowed' }),
+      headers: { 'Content-Type': 'application/json' }
+    };
   }
 
   try {
-    const { action, topic, keywords, websites } = JSON.parse(event.body);
+    const body = JSON.parse(event.body);
+    const { action, topic, keywords, websites } = body;
+    
+    console.log('Parsed request:', { action, topic, keywords, websites });
+
     const apiKey = process.env.CLAUDE_API_KEY;
+    console.log('API Key exists:', !!apiKey);
+    console.log('API Key starts with:', apiKey ? apiKey.substring(0, 10) : 'MISSING');
 
     if (!apiKey) {
-      return { statusCode: 500, body: JSON.stringify({ error: 'API key not configured' }) };
+      return { 
+        statusCode: 500, 
+        body: JSON.stringify({ error: 'API key not configured' }),
+        headers: { 'Content-Type': 'application/json' }
+      };
     }
 
     let prompt = '';
@@ -19,7 +35,8 @@ exports.handler = async (event) => {
 Generate a list of 8-12 relevant keywords that could be searched on company websites. These should include both exact keywords and semantic variations.
 
 Return ONLY a comma-separated list of keywords, nothing else.`;
-    } else if (action === 'search') {
+    } 
+    else if (action === 'search') {
       const websiteList = websites.map(w => `${w.name} (${w.domain})`).join(', ');
       const keywordString = keywords.join(', ');
 
@@ -41,6 +58,8 @@ Format SME alerts like: "SME ALERT: [EXPERTISE TYPE]"
 Be thorough but concise.`;
     }
 
+    console.log('Prompt prepared, calling Claude API...');
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -54,11 +73,52 @@ Be thorough but concise.`;
       }),
     });
 
+    console.log('Claude API response status:', response.status);
+
     if (!response.ok) {
-      const error = await response.json();
-      return { statusCode: response.status, body: JSON.stringify(error) };
+      const errorData = await response.json();
+      console.log('Claude API error:', errorData);
+      
+      return { 
+        statusCode: response.status, 
+        body: JSON.stringify({ 
+          error: errorData.error?.message || 'Claude API request failed',
+          status: response.status,
+          details: errorData 
+        }),
+        headers: { 'Content-Type': 'application/json' }
+      };
     }
 
     const data = await response.json();
+    console.log('Claude API success, response:', data);
 
-ls -la netlify/functions/
+    if (!data.content || !data.content[0] || !data.content[0].text) {
+      return { 
+        statusCode: 500, 
+        body: JSON.stringify({ error: 'Unexpected response format from Claude API' }),
+        headers: { 'Content-Type': 'application/json' }
+      };
+    }
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ result: data.content[0].text }),
+      headers: { 'Content-Type': 'application/json' }
+    };
+
+  } catch (error) {
+    console.error('Catch error:', error);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    
+    return { 
+      statusCode: 500, 
+      body: JSON.stringify({ 
+        error: error.message,
+        type: error.constructor.name 
+      }),
+      headers: { 'Content-Type': 'application/json' }
+    };
+  }
+};
