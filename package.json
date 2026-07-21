@@ -1,11 +1,23 @@
 {
   "name": "flow-reps-research-tool",
   "version": "1.0.0",
-  "description": "Research tool for Flow Reps - automatically searches company websites for topics",
+  "description": "Research tool for Flow Reps - searches company websites using Perplexity AI",
+  "main": "server.js",
   "scripts": {
-    "start": "netlify dev"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
-  "keywords": ["research", "flow-reps", "company-intelligence"],
+  "keywords": [
+    "research",
+    "flow-reps",
+    "perplexity"
+  ],
   "author": "Flow Reps",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": "18.x"
+  }
 }
