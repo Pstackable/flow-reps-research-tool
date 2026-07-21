@@ -65,7 +65,7 @@ Be thorough but concise.`;
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
-        'anthropic-version': '2024-06-01',
+        'anthropic-version': '2024-04-01',
       },
       body: JSON.stringify({
         model: 'claude-opus-4-6',
