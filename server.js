@@ -203,7 +203,7 @@ app.post('/research', async (req, res) => {
         }
         if (i < websites.length - 1) {
           log('INFO', `${progress} Waiting 500ms before next search...`);
-          await delay(7000);
+          await delay(500);
         }
       }
       log('INFO', '='.repeat(70));
