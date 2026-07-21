@@ -53,7 +53,7 @@ Search these websites for this topic. For each website provide:
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'pplx-70b-online',
+        model: 'sonar-pro',
         messages: [{
           role: 'user',
           content: prompt
