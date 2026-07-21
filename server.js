@@ -176,7 +176,6 @@ Return ONLY a comma-separated list. Nothing else.`;
 
       const cappedWebsites = websites.slice(0, 10);
       const allResults = [];
-      const keywordsList = keywords.join(', ');
 
       log('INFO', 'Starting individual website searches...');
       log('INFO', '='.repeat(70));
@@ -187,23 +186,22 @@ Return ONLY a comma-separated list. Nothing else.`;
         log('INFO', `${progress} Searching: ${website.name} (${website.domain})`);
 
         try {
-          const searchPrompt = `Search the website ${website.domain} for PDFs, white papers, technical blog posts, or product pages related to either of these topics:
+          const searchPrompt = `You MUST search the website ${website.domain} and its subdomains for content about liquid cooling for data centers OR valve applications.
 
-Topic #1: Liquid Cooling for Data Centers
-Keywords: "liquid-cooled servers," "direct-to-chip," "immersion cooling," "data center cooling systems," "AI GPU cooling," "TDP," "facility water system," "rear-door heat exchanger," "CDU," "dielectric fluid," "thermal ride-through," "sustainable data center"
+Use your web search to actively look for:
+- White papers, PDFs, technical blog posts, product pages
+- Liquid cooling keywords: "liquid-cooled servers," "direct-to-chip," "immersion cooling," "data center cooling," "AI GPU cooling," "rear-door heat exchanger," "CDU," "dielectric fluid," "thermal ride-through"
+- Valve keywords: "ball valve," "butterfly valve," "plug valve," "globe valve," "gate valve," "valve control," "valve automation," "valves in data centers," "valve case study"
+- If the company is a subject matter expert in data center engineering, note it
 
-Topic #2: Valve Usage in Modern Applications
-Keywords: "quarter-turn valves," "ball valve," "butterfly valve," "plug valve," "globe valve," "needle valve," "gate valve," "pinch valve," "rotary valves," "valve control," "valve automation," "valves in data centers," "valve application case study," "valve case studies"
+Report findings ONLY in this format:
+Company Name | Domain | [What was found - state upfront if found, then 1-3 sentence summary with specific details/quotes] | [Direct URLs where found]
 
-Instructions:
-1. If relevant source found: State what was found first (e.g., "A white paper titled...")
-2. Extract 1-3 sentence summary
-3. If company is SME in data center engineering, START with: "SME ALERT: DATA CENTER ENGINEERING"
-4. Format: Company Name | Domain | Summary | Links
+If you find SME content about data center engineering, START with: "SME ALERT: DATA CENTER ENGINEERING"
 
-If NO relevant information found, respond ONLY: No Updates Found
+If absolutely NO relevant content exists after searching, respond: "No Updates Found"
 
-Do not include any other commentary.`;
+Do not add any other commentary.`;
 
           const text = await callPerplexity(searchPrompt);
           if (text && !text.toLowerCase().includes('no updates found')) {
