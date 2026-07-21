@@ -19,7 +19,7 @@
     .form-group { margin-bottom: 24px; }
     .form-group label { display: block; margin-bottom: 8px; font-weight: 500; font-size: 14px; color: #333; }
     input[type="text"], input[type="number"], textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; margin-bottom: 12px; font-family: inherit; }
-    textarea { min-height: 150px; resize: vertical; }
+    textarea { min-height: 250px; resize: vertical; font-family: monospace; font-size: 12px; }
     input:focus, textarea:focus { outline: none; border-color: #0066cc; box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1); }
     button { padding: 12px 20px; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
     .btn-primary { background-color: #0066cc; color: white; }
@@ -47,17 +47,20 @@
     .history-item:hover { background-color: #f9f9f9; }
     .history-item-title { font-weight: 600; color: #000; }
     .history-item-meta { font-size: 12px; color: #666; margin-top: 4px; }
-    .prompt-box { padding: 12px; background-color: #f0f0f0; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 12px; font-family: monospace; font-size: 12px; white-space: pre-wrap; word-wrap: break-word; max-height: 300px; overflow-y: auto; }
-    .progress-container { margin-bottom: 24px; padding: 20px; background: white; border-radius: 8px; border: 1px solid #ddd; text-align: center; }
-    .progress-text { font-size: 16px; font-weight: 600; color: #0066cc; }
-    .spinner-large { display: inline-block; width: 40px; height: 40px; border: 4px solid rgba(0,102,204,0.2); border-radius: 50%; border-top-color: #0066cc; animation: spin 1s linear infinite; margin: 20px 0; }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    .progress-container { margin-bottom: 24px; padding: 20px; background: white; border-radius: 8px; border: 1px solid #ddd; }
+    .progress-bar { width: 100%; height: 40px; background-color: #eee; border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, #0066cc, #0052a3); transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-size: 13px; font-weight: 600; }
+    .progress-text { font-size: 16px; font-weight: 600; color: #0066cc; margin-bottom: 8px; }
+    .progress-meta { font-size: 13px; color: #666; }
+    .company-now { padding: 12px; background-color: #f0f8ff; border-left: 4px solid #0066cc; border-radius: 4px; font-size: 14px; }
+    .company-now strong { color: #0066cc; }
     .button-group { display: flex; gap: 8px; margin-top: 12px; }
     .button-group button { flex: 1; }
     h2 { font-size: 18px; font-weight: 600; margin-bottom: 12px; color: #000; }
     h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #333; }
     p { font-size: 13px; color: #666; margin: 0; }
     .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -80,6 +83,7 @@
       const [defaultPrompt, setDefaultPrompt] = useState('');
       const [expanding, setExpanding] = useState(false);
       const [searching, setSearching] = useState(false);
+      const [progress, setProgress] = useState({ current: 0, total: 0, current_company: '', current_domain: '' });
       const [error, setError] = useState('');
       const [loading, setLoading] = useState(true);
 
@@ -144,22 +148,22 @@
       };
 
       const goToPromptEdit = () => {
-        const prompt = `You MUST search each of these websites for content about the research topic.
+        const prompt = `I need your help search for PDFs, white papers, technical blog posts, or product pages related to either of the below two topics on this SPECIFIC website home page or its subdomains here, {{website_url}}.
 
-Topic: "${topic}"
-Keywords: ${keywords.join(', ')}
+Topic #1: Liquid Cooling for Data Centers
+Keywords that you can look for (exactly and/or semantically): "liquid-cooled servers," "direct-to-chip," "immersion cooling," "data center cooling systems," "AI GPU cooling," "TDP," "facility water system," "rear-door heat exchanger," "CDU," "dielectric fluid," "thermal ride-through," "sustainable data center."
 
-For each website, search for:
-- White papers, PDFs, technical blog posts, product pages
-- Relevant keywords and case studies
-- Expert content and solutions
+Topic #2: Valve Usage in Modern Applications
+Keywords that you can look for (exactly and/or semantically): "quarter-turn valves," "ball valve," "butterfly valve," "plug valve," "globe valve," "needle valve," "gate valve," "pinch valve," "rotary valves," "valve control," "valve automation," "valves in data centers," "valves in food and beverage," "valves in pharmaceutical," "valves in semiconductor," "valves in pulp and paper," "valves in tire plants," "valves in hospitals," "valves in high-rise buildings," "valve application case study," "valve case studies."
 
-Report findings in this format ONLY:
-Company Name | Domain | [Summary: what was found with 1-3 sentences] | [Direct URLs]
+Important Action if a relevant source is found:
+1.) First: State what was found up front (e.g. "A _____ was found)
+2.) Extract a 1–3 sentence summary of the content.
+3.) If the website alludes to the company being a leader or subject matter expert in data-center engineering, before everything else say, "SME ALERT: DATA CENTER ENGINEERING"
 
-If SME content in data center engineering, START with: "SME ALERT: DATA CENTER ENGINEERING"
-If NO content found: "No Updates Found"
-No other commentary.`;
+If you find confirmed updates, do not say anything more than the directions above. I don't need to hear things like "No other recent updates were found," or "If you want me to provide links or extract more detailed technical insights from any specific document or section mentioned above just let me know!"
+
+If you do not find any relevant information that matches what I asked for, only respond with: No Updates Found`;
         setDefaultPrompt(prompt);
         setCustomPrompt(prompt);
         setStep(3);
@@ -168,20 +172,58 @@ No other commentary.`;
       const search = async () => {
         if (selectedWebsites.size === 0) { setError('Select at least 1 website'); return; }
         setSearching(true);
+        setProgress({ current: 0, total: selectedWebsites.size, current_company: '', current_domain: '' });
         setError('');
         try {
           const list = Array.from(selectedWebsites).map(i => websites[i]);
-          const r = await fetch('https://flow-reps-research-tool-production.up.railway.app/research', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'search', topic: topic, keywords: keywords, websites: list, customPrompt: customPrompt })
-          });
-          const d = await r.json();
-          setResults({ topic: topic, results: d.results, searchDate: d.searchDate, websiteCount: list.length });
-          setStep(4);
+          
+          const eventSource = new EventSource('https://flow-reps-research-tool-production.up.railway.app/research-stream?' + 
+            new URLSearchParams({
+              topic: topic,
+              keywords: JSON.stringify(keywords),
+              websites: JSON.stringify(list),
+              customPrompt: customPrompt,
+              action: 'search'
+            }).toString());
+
+          eventSource.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              if (data.type === 'progress') {
+                setProgress({
+                  current: data.current,
+                  total: data.total,
+                  current_company: data.current_company,
+                  current_domain: data.current_domain
+                });
+              } else if (data.type === 'complete') {
+                eventSource.close();
+                setResults({ 
+                  topic: data.topic, 
+                  results: data.results, 
+                  searchDate: data.searchDate, 
+                  websiteCount: list.length 
+                });
+                setStep(4);
+                setSearching(false);
+              } else if (data.type === 'error') {
+                eventSource.close();
+                setError(data.error);
+                setSearching(false);
+              }
+            } catch (e) {
+              console.error('Parse error:', e);
+            }
+          };
+
+          eventSource.onerror = (err) => {
+            console.error('SSE error:', err);
+            eventSource.close();
+            setError('Connection error during search');
+            setSearching(false);
+          };
         } catch (e) {
           setError(e.message);
-        } finally {
           setSearching(false);
         }
       };
@@ -207,6 +249,7 @@ No other commentary.`;
         setKeywords([]);
         setSelectedWebsites(new Set());
         setResults(null);
+        setProgress({ current: 0, total: 0, current_company: '', current_domain: '' });
         setCustomPrompt('');
         setError('');
       };
@@ -278,7 +321,7 @@ No other commentary.`;
           {step === 3 && (
             <div>
               <h2>Review & Edit Prompt</h2>
-              <p style={{marginBottom: '12px', color: '#666'}}>Edit the prompt if needed, then click Search. This tells Perplexity what to look for.</p>
+              <p style={{marginBottom: '12px', color: '#666'}}>Edit the prompt if needed. Use {{website_url}} placeholder for website domain. Then click Search.</p>
               
               <div className="form-group">
                 <label>Search Prompt</label>
@@ -304,9 +347,22 @@ No other commentary.`;
 
           {searching && (
             <div className="progress-container">
-              <p className="progress-text">🔍 Searching websites...</p>
-              <div className="spinner-large"></div>
-              <p style={{color: '#666', marginTop: '12px'}}>This may take several minutes ({selectedWebsites.size} sites)</p>
+              <div className="progress-text">🔍 Live Progress</div>
+              <div className="progress-bar">
+                <div className="progress-fill" style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}>
+                  {progress.total > 0 ? `${progress.current}/${progress.total}` : ''}
+                </div>
+              </div>
+              <div className="progress-meta">
+                {progress.total > 0 ? `${Math.round((progress.current / progress.total) * 100)}% Complete` : 'Starting...'}
+              </div>
+              {progress.current_company && (
+                <div className="company-now" style={{marginTop: '12px'}}>
+                  <strong>📍 Now Searching:</strong><br/>
+                  {progress.current_company}<br/>
+                  <span style={{fontSize: '12px', color: '#666'}}>{progress.current_domain}</span>
+                </div>
+              )}
             </div>
           )}
 
