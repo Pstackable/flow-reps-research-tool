@@ -1,0 +1,11 @@
+{
+  "name": "flow-reps-research-tool",
+  "version": "1.0.0",
+  "description": "Research tool for Flow Reps - automatically searches company websites for topics",
+  "scripts": {
+    "start": "netlify dev"
+  },
+  "keywords": ["research", "flow-reps", "company-intelligence"],
+  "author": "Flow Reps",
+  "license": "MIT"
+}

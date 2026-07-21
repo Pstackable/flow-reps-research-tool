@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flow Reps Research Tool</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #f5f5f5;
+      color: #1a1a1a;
+    }
+    #root {
+      min-height: 100vh;
+      padding: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel">
+    const { useState } = React;
+
+    const defaultWebsites = [
+      { name: 'A-T Controls', domain: 'atcontrols.com' },
+      { name: 'A.W. Chesterton', domain: 'chesterton.com' },
+      { name: 'ABB Measurement & Analytics', domain: 'new.abb.com' },
+      { name: 'ASCO Valve', domain: 'asco.com' },
+      { name: '4Evergreen Valve', domain: '4evalve.com' },
+      { name: 'A&B Stainless Valve', domain: 'abstainless.com' },
+    ];
+
+    function ResearchTool() {
+      const [topic, setTopic] = useState('');
+      const [expandedTopic, setExpandedTopic] = useState(null);
+      const [keywords, setKeywords] = useState([]);
+      const [selectedWebsites, setSelectedWebsites] = useState(new Set());
+      const [results, setResults] = useState(null);
+      const [expandingTopic, setExpandingTopic] = useState(false);
+      const [searching, setSearching] = useState(false);
+      const [error, setError] = useState('');
+
+      const expandTopic = async () => {
+        if (!topic.trim()) {
+          setError('Please enter a topic');
+          return;
+        }
+
+        setExpandingTopic(true);
+        setError('');
+
+        try {
+          const response = await fetch('/.netlify/functions/research', {
+            method: 'POST',
+            body: JSON.stringify({
+              action: 'expandTopic',
+              topic: topic.trim(),
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to expand topic');
+          }
+
+          const data = await response.json();
+          const keywordArray = data.result.split(',').map(k => k.trim()).filter(k => k);
+          
+          setExpandedTopic(topic);
+          setKeywords(keywordArray);
+          setSelectedWebsites(new Set());
+        } catch (err) {
+          setError(`Error: ${err.message}`);
+        } finally {
+          setExpandingTopic(false);
+        }
+      };
+
+      const toggleWebsite = (idx) => {
+        const newSet = new Set(selectedWebsites);
+        if (newSet.has(idx)) newSet.delete(idx);
+        else newSet.add(idx);
+        setSelectedWebsites(newSet);
+      };
+
+      const runSearch = async () => {
+        if (selectedWebsites.size === 0) {
+          setError('Please select at least one website');
+          return;
+        }
+
+        setSearching(true);
+        setError('');
+
+        try {
+          const selectedWebsitesList = Array.from(selectedWebsites).map(i => defaultWebsites[i]);
+
+          const response = await fetch('/.netlify/functions/research', {
+            method: 'POST',
+            body: JSON.stringify({
+              action: 'search',
+              topic: expandedTopic,
+              keywords,
+              websites: selectedWebsitesList,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Search failed');
+          }
+
+          const data = await response.json();
+          
+          setResults({
+            topic: expandedTopic,
+            keywords,
+            websites: selectedWebsitesList,
+            findings: data.result,
+            timestamp: new Date().toLocaleString(),
+          });
+        } catch (err) {
+          setError(`Search error: ${err.message}`);
+        } finally {
+          setSearching(false);
+        }
+      };
+
+      const reset = () => {
+        setTopic('');
+        setExpandedTopic(null);
+        setKeywords([]);
+        setSelectedWebsites(new Set());
+        setResults(null);
+        setError('');
+      };
+
+      return (
+        <div style={{ maxWidth: '700px', margin: '0 auto' }}>
+          <h1 style={{ fontSize: '28px', fontWeight: '500', marginBottom: '24px' }}>Research tool</h1>
+
+          {!results ? (
+            <div>
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', fontSize: '14px' }}>
+                  Research topic
+                </label>
+                <input
+                  type="text"
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && expandTopic()}
+                  placeholder="e.g., Liquid cooling for data centers"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #ddd',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    marginBottom: '12px',
+                  }}
+                />
+                <button
+                  onClick={expandTopic}
+                  disabled={expandingTopic || !topic.trim()}
+                  style={{
+                    padding: '10px 16px',
+                    backgroundColor: expandingTopic ? '#ccc' : '#0066cc',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    cursor: expandingTopic || !topic.trim() ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {expandingTopic ? 'Expanding...' : 'Expand topic'}
+                </button>
+              </div>
+
+              {error && (
+                <div style={{ padding: '12px', backgroundColor: '#ffe6e6', color: '#cc0000', borderRadius: '6px', fontSize: '14px', marginBottom: '24px' }}>
+                  {error}
+                </div>
+              )}
+
+              {expandedTopic && (
+                <div style={{ marginBottom: '24px' }}>
+                  <h2 style={{ fontSize: '16px', fontWeight: '500', marginBottom: '12px' }}>Keywords for "{expandedTopic}"</h2>
+                  <div style={{ padding: '12px', backgroundColor: '#f0f0f0', borderRadius: '6px', marginBottom: '24px' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {keywords.map((kw, idx) => (
+                        <span
+                          key={idx}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: '#e6f2ff',
+                            color: '#0066cc',
+                            borderRadius: '12px',
+                            fontSize: '13px',
+                          }}
+                        >
+                          {kw}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <h2 style={{ fontSize: '16px', fontWeight: '500', marginBottom: '12px' }}>Select websites to search</h2>
+                  <div style={{ border: '1px solid #ddd', borderRadius: '6px', backgroundColor: '#f9f9f9', overflow: 'hidden', marginBottom: '24px' }}>
+                    {defaultWebsites.map((website, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => toggleWebsite(idx)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '12px',
+                          borderBottom: idx < defaultWebsites.length - 1 ? '1px solid #eee' : 'none',
+                          cursor: 'pointer',
+                          backgroundColor: selectedWebsites.has(idx) ? '#e6f2ff' : 'transparent',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedWebsites.has(idx)}
+                          onChange={() => {}}
+                          style={{ cursor: 'pointer', margin: 0 }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: '500', fontSize: '14px' }}>{website.name}</div>
+                          <div style={{ fontSize: '12px', color: '#666' }}>{website.domain}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => { setTopic(''); setExpandedTopic(null); setKeywords([]); setSelectedWebsites(new Set()); setError(''); }}
+                      style={{
+                        padding: '10px 16px',
+                        backgroundColor: 'white',
+                        color: '#666',
+                        border: '1px solid #ddd',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Change topic
+                    </button>
+                    <button
+                      onClick={runSearch}
+                      disabled={searching || selectedWebsites.size === 0}
+                      style={{
+                        padding: '10px 16px',
+                        backgroundColor: searching ? '#ccc' : '#0066cc',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        cursor: searching || selectedWebsites.size === 0 ? 'not-allowed' : 'pointer',
+                        flex: 1,
+                      }}
+                    >
+                      {searching ? 'Searching...' : 'Search websites'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              <div style={{ marginBottom: '24px' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: '500', marginBottom: '8px' }}>Results for "{results.topic}"</h2>
+                <p style={{ fontSize: '13px', color: '#666', margin: 0 }}>{results.timestamp}</p>
+              </div>
+
+              <div style={{
+                padding: '16px',
+                backgroundColor: '#f9f9f9',
+                borderRadius: '6px',
+                border: '1px solid #ddd',
+                marginBottom: '24px',
+                whiteSpace: 'pre-wrap',
+                wordWrap: 'break-word',
+                fontSize: '13px',
+                lineHeight: '1.6',
+                color: '#1a1a1a',
+              }}>
+                {results.findings}
+              </div>
+
+              <button
+                onClick={reset}
+                style={{
+                  padding: '10px 16px',
+                  backgroundColor: '#0066cc',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                }}
+              >
+                New research
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.render(<ResearchTool />, document.getElementById('root'));
+  </script>
+</body>
+</html>
