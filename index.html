@@ -54,8 +54,11 @@
         setError('');
 
         try {
-          const response = await fetch('/.netlify/functions/research', {
+          const response = await fetch('https://flow-reps-research-tool-production.up.railway.app/research', {
             method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
             body: JSON.stringify({
               action: 'expandTopic',
               topic: topic.trim(),
@@ -99,8 +102,11 @@
         try {
           const selectedWebsitesList = Array.from(selectedWebsites).map(i => defaultWebsites[i]);
 
-          const response = await fetch('/.netlify/functions/research', {
+          const response = await fetch('https://flow-reps-research-tool-production.up.railway.app/research', {
             method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
             body: JSON.stringify({
               action: 'search',
               topic: expandedTopic,
