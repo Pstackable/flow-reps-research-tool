@@ -3,17 +3,56 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Flow Reps Research Tool</title>
+  <title>Flow Reps Research Engine</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #f5f5f5;
       color: #1a1a1a;
     }
     #root {
       min-height: 100vh;
       padding: 20px;
+    }
+    .tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 24px;
+      border-bottom: 2px solid #ddd;
+    }
+    .tab-button {
+      padding: 12px 20px;
+      background: none;
+      border: none;
+      border-bottom: 3px solid transparent;
+      font-size: 14px;
+      fontWeight: 500;
+      cursor: pointer;
+      color: #666;
+    }
+    .tab-button.active {
+      color: #0066cc;
+      border-bottom-color: #0066cc;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      backgroundColor: white;
+    }
+    th {
+      padding: 12px;
+      textAlign: left;
+      backgroundColor: #f0f0f0;
+      fontWeight: 600;
+      borderBottom: 1px solid #ddd;
+    }
+    td {
+      padding: 12px;
+      borderBottom: 1px solid #eee;
+    }
+    tr:hover {
+      backgroundColor: #f9f9f9;
     }
   </style>
 </head>
@@ -25,12 +64,16 @@
   <script type="text/babel">
     const { useState, useEffect } = React;
 
-    function ResearchTool() {
+    function ResearchEngine() {
+      const [activeTab, setActiveTab] = useState('search');
       const [topic, setTopic] = useState('');
       const [expandedTopic, setExpandedTopic] = useState(null);
       const [keywords, setKeywords] = useState([]);
       const [currentPrompt, setCurrentPrompt] = useState('');
+      const [promptExpanded, setPromptExpanded] = useState(true);
       const [websites, setWebsites] = useState([]);
+      const [filteredWebsites, setFilteredWebsites] = useState([]);
+      const [filterText, setFilterText] = useState('');
       const [selectedWebsites, setSelectedWebsites] = useState(new Set());
       const [results, setResults] = useState(null);
       const [expandingTopic, setExpandingTopic] = useState(false);
@@ -38,23 +81,19 @@
       const [error, setError] = useState('');
       const [loadingWebsites, setLoadingWebsites] = useState(true);
       const [savedLists, setSavedLists] = useState([]);
-      const [loadingSavedLists, setLoadingSavedLists] = useState(true);
       const [savingList, setSavingList] = useState(false);
       const [listName, setListName] = useState('');
-      const [showSaveListForm, setShowSaveListForm] = useState(false);
 
       useEffect(() => {
         const fetchWebsites = async () => {
           try {
             const response = await fetch('https://flow-reps-research-tool-production.up.railway.app/websites');
-            if (!response.ok) {
-              throw new Error('Failed to fetch websites');
-            }
+            if (!response.ok) throw new Error('Failed to fetch websites');
             const data = await response.json();
             setWebsites(data.websites || []);
+            setFilteredWebsites(data.websites || []);
           } catch (err) {
             setError(`Error loading websites: ${err.message}`);
-            setWebsites([]);
           } finally {
             setLoadingWebsites(false);
           }
@@ -63,22 +102,26 @@
         const fetchSavedLists = async () => {
           try {
             const response = await fetch('https://flow-reps-research-tool-production.up.railway.app/saved-lists');
-            if (!response.ok) {
-              throw new Error('Failed to fetch saved lists');
+            if (response.ok) {
+              const data = await response.json();
+              setSavedLists(data.lists || []);
             }
-            const data = await response.json();
-            setSavedLists(data.lists || []);
           } catch (err) {
-            console.log('Could not load saved lists:', err.message);
-            setSavedLists([]);
-          } finally {
-            setLoadingSavedLists(false);
+            console.log('Could not load saved lists');
           }
         };
 
         fetchWebsites();
         fetchSavedLists();
       }, []);
+
+      useEffect(() => {
+        const filtered = websites.filter(w => 
+          w.name.toLowerCase().includes(filterText.toLowerCase()) ||
+          w.domain.toLowerCase().includes(filterText.toLowerCase())
+        );
+        setFilteredWebsites(filtered);
+      }, [filterText, websites]);
 
       const expandTopic = async () => {
         if (!topic.trim()) {
@@ -92,40 +135,24 @@
         try {
           const response = await fetch('https://flow-reps-research-tool-production.up.railway.app/research', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              action: 'expandTopic',
-              topic: topic.trim(),
-            }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'expandTopic', topic: topic.trim() }),
           });
 
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to expand topic');
-          }
-
+          if (!response.ok) throw new Error('Failed to expand topic');
           const data = await response.json();
           const keywordArray = data.result.split(',').map(k => k.trim()).filter(k => k);
           
           setExpandedTopic(topic);
           setKeywords(keywordArray);
-          setSelectedWebsites(new Set());
           setCurrentPrompt('');
-          setShowSaveListForm(false);
+          setPromptExpanded(true);
+          setActiveTab('websites');
         } catch (err) {
           setError(`Error: ${err.message}`);
         } finally {
           setExpandingTopic(false);
         }
-      };
-
-      const toggleWebsite = (idx) => {
-        const newSet = new Set(selectedWebsites);
-        if (newSet.has(idx)) newSet.delete(idx);
-        else newSet.add(idx);
-        setSelectedWebsites(newSet);
       };
 
       const generatePrompt = () => {
@@ -145,23 +172,36 @@ Websites to search: ${sites}
 Keywords to look for: ${keys}
 
 IMPORTANT INSTRUCTIONS:
-1. If relevant content is found, state what was found up front (e.g., "A white paper titled..." or "A product page titled...")
-2. Extract a 1-3 sentence summary of the content
-3. If the website alludes to the company being a leader or subject matter expert in data center engineering, start with "SME ALERT: DATA CENTER ENGINEERING" before the findings
-4. Format findings as numbered list with specific document/page titles
-5. Include reference numbers in brackets if citing specific sections
-
-If the website alludes to expertise in data center engineering, liquid cooling, advanced thermal solutions, or similar areas, include SME ALERT at the top.
-
-Format example:
-SME ALERT: DATA CENTER ENGINEERING
-
-1. A white paper titled "[Title]" was found. [1-3 sentence summary][1]
-2. A product page titled "[Title]" was found. [1-3 sentence summary][2]
+1. If relevant content is found, state what was found up front
+2. Extract a 1-3 sentence summary
+3. If the website alludes to expertise in data center engineering, start with "SME ALERT: DATA CENTER ENGINEERING"
+4. Format findings as numbered list
+5. Include reference numbers in brackets
 
 If no relevant information is found, respond ONLY with: No Updates Found`;
 
         setCurrentPrompt(promptText);
+      };
+
+      const toggleWebsite = (idx) => {
+        const newSet = new Set(selectedWebsites);
+        const actualIdx = websites.findIndex(w => w === filteredWebsites[idx]);
+        if (newSet.has(actualIdx)) newSet.delete(actualIdx);
+        else newSet.add(actualIdx);
+        setSelectedWebsites(newSet);
+      };
+
+      const selectAll = () => {
+        const newSet = new Set();
+        filteredWebsites.forEach((w, i) => {
+          const actualIdx = websites.indexOf(w);
+          newSet.add(actualIdx);
+        });
+        setSelectedWebsites(newSet);
+      };
+
+      const selectNone = () => {
+        setSelectedWebsites(new Set());
       };
 
       const runSearch = async () => {
@@ -183,9 +223,7 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
 
           const response = await fetch('https://flow-reps-research-tool-production.up.railway.app/research', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               action: 'search',
               topic: expandedTopic,
@@ -194,11 +232,7 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
             }),
           });
 
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Search failed');
-          }
-
+          if (!response.ok) throw new Error('Search failed');
           const data = await response.json();
           
           setResults({
@@ -208,6 +242,7 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
             findings: data.result,
             timestamp: new Date().toLocaleString(),
           });
+          setActiveTab('results');
         } catch (err) {
           setError(`Search error: ${err.message}`);
         } finally {
@@ -220,7 +255,6 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
           setError('Please enter a list name');
           return;
         }
-
         if (selectedWebsites.size === 0) {
           setError('Please select at least one website');
           return;
@@ -234,30 +268,20 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
 
           const response = await fetch('https://flow-reps-research-tool-production.up.railway.app/save-list', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              name: listName.trim(),
-              websites: selectedWebsitesList,
-            }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: listName.trim(), websites: selectedWebsitesList }),
           });
 
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to save list');
-          }
+          if (!response.ok) throw new Error('Failed to save list');
 
           setListName('');
-          setShowSaveListForm(false);
-          
           const listsResponse = await fetch('https://flow-reps-research-tool-production.up.railway.app/saved-lists');
           if (listsResponse.ok) {
             const data = await listsResponse.json();
             setSavedLists(data.lists || []);
           }
 
-          alert(`List saved successfully!`);
+          alert('List saved successfully!');
         } catch (err) {
           setError(`Error saving list: ${err.message}`);
         } finally {
@@ -265,13 +289,26 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
         }
       };
 
+      const deleteList = async (listToDelete) => {
+        if (!confirm(`Delete "${listToDelete.name}"?`)) return;
+        
+        try {
+          const listsResponse = await fetch('https://flow-reps-research-tool-production.up.railway.app/saved-lists');
+          if (listsResponse.ok) {
+            const data = await listsResponse.json();
+            const filtered = data.lists.filter(l => l.name !== listToDelete.name);
+            setSavedLists(filtered);
+          }
+        } catch (err) {
+          setError(`Error deleting list: ${err.message}`);
+        }
+      };
+
       const loadList = (list) => {
         const indices = new Set();
         list.websites.forEach(savedWebsite => {
           const index = websites.findIndex(w => w.domain === savedWebsite.domain);
-          if (index !== -1) {
-            indices.add(index);
-          }
+          if (index !== -1) indices.add(index);
         });
         setSelectedWebsites(indices);
       };
@@ -285,74 +322,46 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
         setError('');
         setCurrentPrompt('');
         setListName('');
-        setShowSaveListForm(false);
+        setActiveTab('search');
       };
 
       return (
-        <div style={{ maxWidth: '700px', margin: '0 auto' }}>
-          <h1 style={{ fontSize: '28px', fontWeight: '500', marginBottom: '24px' }}>Research tool</h1>
+        <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+          <h1 style={{ fontSize: '32px', fontWeight: '600', marginBottom: '24px' }}>Research Engine</h1>
 
           {!results ? (
             <div>
-              {!expandedTopic && savedLists.length > 0 && (
-                <div style={{ marginBottom: '24px', padding: '12px', backgroundColor: '#f0f9ff', borderRadius: '6px', border: '1px solid #cce5ff' }}>
-                  <h3 style={{ fontSize: '14px', fontWeight: '500', marginBottom: '12px', color: '#0066cc' }}>Saved Website Lists</h3>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                    {savedLists.map((list, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => loadList(list)}
-                        style={{
-                          padding: '8px 12px',
-                          backgroundColor: '#0066cc',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {list.name} ({list.websites.length})
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div style={{ marginBottom: '24px' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', fontSize: '14px' }}>
-                  Research topic
-                </label>
-                <input
-                  type="text"
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && expandTopic()}
-                  placeholder="e.g., Liquid cooling for data centers"
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    border: '1px solid #ddd',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    marginBottom: '12px',
-                  }}
-                />
+              {/* Tab Navigation */}
+              <div style={{ display: 'flex', gap: 0, marginBottom: '24px', borderBottom: '2px solid #ddd' }}>
                 <button
-                  onClick={expandTopic}
-                  disabled={expandingTopic || !topic.trim()}
+                  onClick={() => setActiveTab('search')}
                   style={{
-                    padding: '10px 16px',
-                    backgroundColor: expandingTopic ? '#ccc' : '#0066cc',
-                    color: 'white',
+                    padding: '12px 20px',
+                    background: 'none',
                     border: 'none',
-                    borderRadius: '6px',
+                    borderBottom: activeTab === 'search' ? '3px solid #0066cc' : '3px solid transparent',
                     fontSize: '14px',
                     fontWeight: '500',
-                    cursor: expandingTopic || !topic.trim() ? 'not-allowed' : 'pointer',
+                    cursor: 'pointer',
+                    color: activeTab === 'search' ? '#0066cc' : '#666',
                   }}
                 >
-                  {expandingTopic ? 'Expanding...' : 'Expand topic'}
+                  Search
+                </button>
+                <button
+                  onClick={() => setActiveTab('websites')}
+                  style={{
+                    padding: '12px 20px',
+                    background: 'none',
+                    border: 'none',
+                    borderBottom: activeTab === 'websites' ? '3px solid #0066cc' : '3px solid transparent',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    color: activeTab === 'websites' ? '#0066cc' : '#666',
+                  }}
+                >
+                  Websites
                 </button>
               </div>
 
@@ -362,86 +371,243 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
                 </div>
               )}
 
-              {expandedTopic && (
-                <div style={{ marginBottom: '24px' }}>
-                  {currentPrompt && (
-                    <div style={{ marginBottom: '24px', padding: '12px', backgroundColor: '#fff9e6', borderRadius: '6px', border: '1px solid #ffe699' }}>
-                      <h3 style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px', color: '#cc8800' }}>Prompt</h3>
-                      <pre style={{ fontSize: '11px', whiteSpace: 'pre-wrap', wordWrap: 'break-word', color: '#333' }}>
-                        {currentPrompt}
-                      </pre>
-                    </div>
-                  )}
-
-                  <h2 style={{ fontSize: '16px', fontWeight: '500', marginBottom: '12px' }}>Keywords for "{expandedTopic}"</h2>
-                  <div style={{ padding: '12px', backgroundColor: '#f0f0f0', borderRadius: '6px', marginBottom: '24px' }}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                      {keywords.map((kw, idx) => (
-                        <span
-                          key={idx}
-                          style={{
-                            padding: '6px 12px',
-                            backgroundColor: '#e6f2ff',
-                            color: '#0066cc',
-                            borderRadius: '12px',
-                            fontSize: '13px',
-                          }}
-                        >
-                          {kw}
-                        </span>
-                      ))}
-                    </div>
+              {/* Search Tab */}
+              {activeTab === 'search' && (
+                <div>
+                  <div style={{ marginBottom: '24px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', fontSize: '14px' }}>
+                      Research topic
+                    </label>
+                    <input
+                      type="text"
+                      value={topic}
+                      onChange={(e) => setTopic(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && expandTopic()}
+                      placeholder="e.g., Liquid cooling for data centers"
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: '1px solid #ddd',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        marginBottom: '12px',
+                      }}
+                    />
+                    <button
+                      onClick={expandTopic}
+                      disabled={expandingTopic || !topic.trim()}
+                      style={{
+                        padding: '10px 16px',
+                        backgroundColor: expandingTopic ? '#ccc' : '#0066cc',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        cursor: expandingTopic ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {expandingTopic ? 'Expanding...' : 'Expand topic'}
+                    </button>
                   </div>
 
-                  <h2 style={{ fontSize: '16px', fontWeight: '500', marginBottom: '12px' }}>Select websites to search ({websites.length} available)</h2>
-                  
-                  {loadingWebsites ? (
-                    <div style={{ padding: '12px', textAlign: 'center', color: '#666' }}>Loading websites...</div>
-                  ) : websites.length === 0 ? (
-                    <div style={{ padding: '12px', textAlign: 'center', color: '#666' }}>No websites found.</div>
-                  ) : (
-                    <div style={{ border: '1px solid #ddd', borderRadius: '6px', backgroundColor: '#f9f9f9', overflow: 'hidden', marginBottom: '24px', maxHeight: '400px', overflowY: 'auto' }}>
-                      {websites.map((website, idx) => (
-                        <div
-                          key={idx}
-                          onClick={() => toggleWebsite(idx)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '12px',
-                            padding: '12px',
-                            borderBottom: idx < websites.length - 1 ? '1px solid #eee' : 'none',
-                            cursor: 'pointer',
-                            backgroundColor: selectedWebsites.has(idx) ? '#e6f2ff' : 'transparent',
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedWebsites.has(idx)}
-                            onChange={() => {}}
-                            style={{ cursor: 'pointer', margin: 0 }}
-                          />
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: '500', fontSize: '14px' }}>{website.name}</div>
-                            <div style={{ fontSize: '12px', color: '#666' }}>{website.domain}</div>
-                          </div>
+                  {expandedTopic && (
+                    <div>
+                      {/* Collapsible Prompt */}
+                      {currentPrompt && (
+                        <div style={{ marginBottom: '24px', padding: '12px', backgroundColor: '#fff9e6', borderRadius: '6px', border: '1px solid #ffe699' }}>
+                          <button
+                            onClick={() => setPromptExpanded(!promptExpanded)}
+                            style={{
+                              width: '100%',
+                              textAlign: 'left',
+                              padding: '12px',
+                              backgroundColor: 'transparent',
+                              border: 'none',
+                              fontSize: '14px',
+                              fontWeight: '500',
+                              color: '#cc8800',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {promptExpanded ? '▼' : '▶'} Prompt
+                          </button>
+                          {promptExpanded && (
+                            <pre style={{ fontSize: '11px', whiteSpace: 'pre-wrap', wordWrap: 'break-word', color: '#333', marginTop: '8px' }}>
+                              {currentPrompt}
+                            </pre>
+                          )}
                         </div>
-                      ))}
+                      )}
+
+                      {/* Keywords */}
+                      <h2 style={{ fontSize: '16px', fontWeight: '500', marginBottom: '12px' }}>Keywords for "{expandedTopic}"</h2>
+                      <div style={{ padding: '12px', backgroundColor: '#f0f0f0', borderRadius: '6px', marginBottom: '24px' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                          {keywords.map((kw, idx) => (
+                            <span
+                              key={idx}
+                              style={{
+                                padding: '6px 12px',
+                                backgroundColor: '#e6f2ff',
+                                color: '#0066cc',
+                                borderRadius: '12px',
+                                fontSize: '13px',
+                              }}
+                            >
+                              {kw}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Websites Tab */}
+              {activeTab === 'websites' && expandedTopic && (
+                <div>
+                  {/* Saved Lists */}
+                  {savedLists.length > 0 && (
+                    <div style={{ marginBottom: '24px', padding: '12px', backgroundColor: '#f0f9ff', borderRadius: '6px', border: '1px solid #cce5ff' }}>
+                      <h3 style={{ fontSize: '14px', fontWeight: '500', marginBottom: '12px', color: '#0066cc' }}>Saved Lists</h3>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {savedLists.map((list, idx) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', backgroundColor: '#0066cc', color: 'white', borderRadius: '6px', fontSize: '12px' }}>
+                            <button
+                              onClick={() => loadList(list)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'white',
+                                cursor: 'pointer',
+                                fontSize: '12px',
+                              }}
+                            >
+                              {list.name} ({list.websites.length})
+                            </button>
+                            <button
+                              onClick={() => deleteList(list)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'white',
+                                cursor: 'pointer',
+                                fontSize: '16px',
+                                padding: '0',
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 
-                  {showSaveListForm && selectedWebsites.size > 0 && (
+                  {/* Filter */}
+                  <div style={{ marginBottom: '24px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', fontSize: '14px' }}>Filter</label>
+                    <input
+                      type="text"
+                      value={filterText}
+                      onChange={(e) => setFilterText(e.target.value)}
+                      placeholder="Filter by name or domain..."
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: '1px solid #ddd',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                      }}
+                    />
+                  </div>
+
+                  {/* Select All / None */}
+                  <div style={{ marginBottom: '12px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <button
+                      onClick={selectAll}
+                      style={{
+                        color: '#0066cc',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                      }}
+                    >
+                      Select All (filtered)
+                    </button>
+                    <button
+                      onClick={selectNone}
+                      style={{
+                        color: '#0066cc',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                      }}
+                    >
+                      Select None
+                    </button>
+                    <span style={{ marginLeft: 'auto', fontSize: '14px', color: '#666' }}>
+                      {selectedWebsites.size} selected
+                    </span>
+                  </div>
+
+                  {/* Websites Table */}
+                  {loadingWebsites ? (
+                    <div style={{ textAlign: 'center', color: '#666', padding: '24px' }}>Loading websites...</div>
+                  ) : (
+                    <div style={{ border: '1px solid #ddd', borderRadius: '6px', overflow: 'hidden', marginBottom: '24px' }}>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th style={{ width: '40px' }}>
+                              <input type="checkbox" style={{ cursor: 'pointer' }} />
+                            </th>
+                            <th>Name</th>
+                            <th>Domain</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredWebsites.map((website, idx) => {
+                            const actualIdx = websites.indexOf(website);
+                            return (
+                              <tr key={idx}>
+                                <td>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedWebsites.has(actualIdx)}
+                                    onChange={() => toggleWebsite(idx)}
+                                    style={{ cursor: 'pointer' }}
+                                  />
+                                </td>
+                                <td style={{ fontWeight: '500' }}>{website.name}</td>
+                                <td>{website.domain}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Save List */}
+                  {selectedWebsites.size > 0 && (
                     <div style={{ marginBottom: '24px', padding: '12px', backgroundColor: '#f0f9ff', borderRadius: '6px', border: '1px solid #cce5ff' }}>
-                      <h3 style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>Save this selection as a list</h3>
+                      <h3 style={{ fontSize: '14px', fontWeight: '500', marginBottom: '12px' }}>Save Selected As List</h3>
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <input
                           type="text"
                           value={listName}
                           onChange={(e) => setListName(e.target.value)}
-                          placeholder="e.g., Data Center Companies"
+                          placeholder="e.g., Valve OEMs"
                           style={{
                             flex: 1,
-                            padding: '8px 12px',
+                            padding: '10px 12px',
                             border: '1px solid #cce5ff',
                             borderRadius: '6px',
                             fontSize: '14px',
@@ -451,25 +617,26 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
                           onClick={saveList}
                           disabled={savingList || !listName.trim()}
                           style={{
-                            padding: '8px 16px',
+                            padding: '10px 16px',
                             backgroundColor: savingList ? '#ccc' : '#0066cc',
                             color: 'white',
                             border: 'none',
                             borderRadius: '6px',
                             fontSize: '14px',
                             fontWeight: '500',
-                            cursor: savingList || !listName.trim() ? 'not-allowed' : 'pointer',
+                            cursor: savingList ? 'not-allowed' : 'pointer',
                           }}
                         >
-                          {savingList ? 'Saving...' : 'Save'}
+                          {savingList ? 'Saving...' : 'Save List'}
                         </button>
                       </div>
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                  {/* Action Buttons */}
+                  <div style={{ display: 'flex', gap: '8px' }}>
                     <button
-                      onClick={() => { setTopic(''); setExpandedTopic(null); setKeywords([]); setSelectedWebsites(new Set()); setError(''); setCurrentPrompt(''); setShowSaveListForm(false); }}
+                      onClick={() => setActiveTab('search')}
                       style={{
                         padding: '10px 16px',
                         backgroundColor: 'white',
@@ -480,7 +647,7 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
                         cursor: 'pointer',
                       }}
                     >
-                      Change topic
+                      Back to Search
                     </button>
                     <button
                       onClick={runSearch}
@@ -493,30 +660,19 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
                         borderRadius: '6px',
                         fontSize: '14px',
                         fontWeight: '500',
-                        cursor: searching || selectedWebsites.size === 0 ? 'not-allowed' : 'pointer',
+                        cursor: searching ? 'not-allowed' : 'pointer',
                         flex: 1,
                       }}
                     >
                       {searching ? 'Searching...' : currentPrompt ? 'Search websites' : 'Show prompt'}
                     </button>
                   </div>
+                </div>
+              )}
 
-                  {selectedWebsites.size > 0 && (
-                    <button
-                      onClick={() => setShowSaveListForm(!showSaveListForm)}
-                      style={{
-                        padding: '8px 12px',
-                        backgroundColor: 'white',
-                        color: '#0066cc',
-                        border: '1px solid #0066cc',
-                        borderRadius: '6px',
-                        fontSize: '13px',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {showSaveListForm ? 'Cancel save' : 'Save this list'}
-                    </button>
-                  )}
+              {activeTab === 'websites' && !expandedTopic && (
+                <div style={{ textAlign: 'center', padding: '24px', color: '#666' }}>
+                  Please search a topic first
                 </div>
               )}
             </div>
@@ -537,7 +693,6 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
                 wordWrap: 'break-word',
                 fontSize: '13px',
                 lineHeight: '1.6',
-                color: '#1a1a1a',
               }}>
                 {results.findings}
               </div>
@@ -563,7 +718,7 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
       );
     }
 
-    ReactDOM.render(<ResearchTool />, document.getElementById('root'));
+    ReactDOM.render(<ResearchEngine />, document.getElementById('root'));
   </script>
 </body>
 </html>
