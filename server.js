@@ -18,28 +18,43 @@ app.use((req, res, next) => {
 const SUPABASE_URL = 'https://atddexueqapijmevomam.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0ZGRleHVlcWFwaWptZXZvbWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MzIxNzIsImV4cCI6MjEwMDIwODE3Mn0.qCdUFLJuYhTSinVJ9v3h9-rmui3vOZmTn8w4Kdi9oVY';
 
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', message: 'Server is running' });
+});
+
 // Get all websites from Supabase
 app.get('/websites', async (req, res) => {
   try {
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/websites`, {
+    console.log('Fetching websites from Supabase...');
+    
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/websites?select=*`, {
+      method: 'GET',
       headers: {
         'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
         'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
       },
     });
 
+    console.log('Supabase response status:', response.status);
+
     if (!response.ok) {
-      return res.status(response.status).json({ error: 'Failed to fetch websites' });
+      const errorText = await response.text();
+      console.error('Supabase error:', errorText);
+      return res.status(response.status).json({ error: `Supabase error: ${errorText}` });
     }
 
     const websites = await response.json();
+    console.log('Fetched', websites.length, 'websites');
     return res.status(200).json({ websites });
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    console.error('Error fetching websites:', error.message);
+    return res.status(500).json({ error: `Server error: ${error.message}` });
   }
 });
 
-// Upload CSV to Supabase
+// Upload websites to Supabase
 app.post('/upload-websites', async (req, res) => {
   try {
     const { websites } = req.body;
@@ -48,24 +63,26 @@ app.post('/upload-websites', async (req, res) => {
       return res.status(400).json({ error: 'websites must be an array' });
     }
 
-    // Insert websites into Supabase
     const response = await fetch(`${SUPABASE_URL}/rest/v1/websites`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
         'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
         'Prefer': 'resolution=merge-duplicates',
       },
       body: JSON.stringify(websites),
     });
 
     if (!response.ok) {
-      const err = await response.json();
-      return res.status(response.status).json({ error: err.message || 'Failed to upload websites' });
+      const errorText = await response.text();
+      console.error('Upload error:', errorText);
+      return res.status(response.status).json({ error: errorText });
     }
 
     return res.status(200).json({ message: `${websites.length} websites uploaded successfully` });
   } catch (error) {
+    console.error('Upload error:', error.message);
     return res.status(500).json({ error: error.message });
   }
 });
@@ -77,7 +94,7 @@ app.post('/research', async (req, res) => {
     const apiKey = process.env.PERPLEXITY_API_KEY;
 
     if (!apiKey) {
-      return res.status(500).json({ error: 'Missing API key' });
+      return res.status(500).json({ error: 'Missing Perplexity API key' });
     }
 
     let prompt = '';
@@ -100,19 +117,11 @@ Websites to search: ${sites}
 Keywords to look for: ${keys}
 
 IMPORTANT INSTRUCTIONS:
-1. If relevant content is found, state what was found up front (e.g., "A white paper titled..." or "A product page titled...")
-2. Extract a 1-3 sentence summary of the content
-3. If the website alludes to the company being a leader or subject matter expert in data center engineering, start with "SME ALERT: DATA CENTER ENGINEERING" before the findings
-4. Format findings as numbered list with specific document/page titles
-5. Include reference numbers in brackets if citing specific sections
-
-If the website alludes to expertise in data center engineering, liquid cooling, advanced thermal solutions, or similar areas, include SME ALERT at the top.
-
-Format example:
-SME ALERT: DATA CENTER ENGINEERING
-
-1. A white paper titled "[Title]" was found. [1-3 sentence summary][1]
-2. A product page titled "[Title]" was found. [1-3 sentence summary][2]
+1. If relevant content is found, state what was found up front
+2. Extract a 1-3 sentence summary
+3. If the website alludes to expertise in data center engineering, start with "SME ALERT: DATA CENTER ENGINEERING"
+4. Format findings as numbered list
+5. Include reference numbers in brackets
 
 If no relevant information is found, respond ONLY with: No Updates Found`;
     }
@@ -148,6 +157,7 @@ If no relevant information is found, respond ONLY with: No Updates Found`;
     return res.status(200).json({ result: text });
 
   } catch (error) {
+    console.error('Research error:', error.message);
     return res.status(500).json({ error: error.message });
   }
 });
