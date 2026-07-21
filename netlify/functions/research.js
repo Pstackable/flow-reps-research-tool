@@ -8,7 +8,7 @@ exports.handler = async (event) => {
 
   try {
     const { action, topic, keywords, websites } = JSON.parse(event.body);
-    const apiKey = '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';
+    const apiKey = process.env.PERPLEXITY_API_KEY;
 
     if (!apiKey) {
       return { 
