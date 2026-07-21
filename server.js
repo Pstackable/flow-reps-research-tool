@@ -80,7 +80,6 @@ function parseResultForExcel(rawResult, website) {
   let citationLinks = '';
 
   for (const line of lines) {
-    // Skip template text rows
     if (line.includes('[What was found') || line.includes('[Direct URLs') || line.includes('Company Name') || line.includes('Domain')) {
       continue;
     }
@@ -97,7 +96,6 @@ function parseResultForExcel(rawResult, website) {
     }
   }
 
-  // Clean up summary - remove template-like text
   if (summary.includes('[What was found') || summary.includes('[Direct URLs') || !summary.trim()) {
     summary = rawResult.substring(0, 300).replace(/\[.*?\]/g, '');
   }
@@ -150,7 +148,7 @@ app.post('/research', async (req, res) => {
   log('INFO', '='.repeat(70));
 
   try {
-    const { action, topic, keywords, websites } = req.body;
+    const { action, topic, keywords, websites, customPrompt } = req.body;
 
     if (!PERPLEXITY_API_KEY) {
       log('ERROR', 'PERPLEXITY_API_KEY not set in environment');
@@ -185,7 +183,7 @@ Return ONLY a comma-separated list. Nothing else.`;
         return res.status(400).json({ error: 'No websites provided' });
       }
 
-      const cappedWebsites = websites.slice(0, 10);
+      const cappedWebsites = websites.slice(0, 100);
       const allResults = [];
 
       log('INFO', 'Starting individual website searches...');
@@ -197,22 +195,7 @@ Return ONLY a comma-separated list. Nothing else.`;
         log('INFO', `${progress} Searching: ${website.name} (${website.domain})`);
 
         try {
-          const searchPrompt = `You MUST search the website ${website.domain} and its subdomains for content about liquid cooling for data centers OR valve applications.
-
-Use your web search to actively look for:
-- White papers, PDFs, technical blog posts, product pages
-- Liquid cooling keywords: "liquid-cooled servers," "direct-to-chip," "immersion cooling," "data center cooling," "AI GPU cooling," "rear-door heat exchanger," "CDU," "dielectric fluid," "thermal ride-through"
-- Valve keywords: "ball valve," "butterfly valve," "plug valve," "globe valve," "gate valve," "valve control," "valve automation," "valves in data centers," "valve case study"
-- If the company is a subject matter expert in data center engineering, note it
-
-Report findings ONLY in this format:
-Company Name | Domain | [What was found - state upfront if found, then 1-3 sentence summary with specific details/quotes] | [Direct URLs where found]
-
-If you find SME content about data center engineering, START with: "SME ALERT: DATA CENTER ENGINEERING"
-
-If absolutely NO relevant content exists after searching, respond: "No Updates Found"
-
-Do not add any other commentary.`;
+          const searchPrompt = customPrompt.replace(/{{website_url}}/g, website.domain).replace(/{{website_name}}/g, website.name);
 
           const text = await callPerplexity(searchPrompt);
           if (text && !text.toLowerCase().includes('no updates found')) {
