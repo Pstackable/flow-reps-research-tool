@@ -26,8 +26,6 @@ app.get('/health', (req, res) => {
 // Get all websites from Supabase
 app.get('/websites', async (req, res) => {
   try {
-    console.log('Fetching websites from Supabase...');
-    
     const response = await fetch(`${SUPABASE_URL}/rest/v1/websites?select=*`, {
       method: 'GET',
       headers: {
@@ -37,8 +35,6 @@ app.get('/websites', async (req, res) => {
       },
     });
 
-    console.log('Supabase response status:', response.status);
-
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Supabase error:', errorText);
@@ -46,7 +42,6 @@ app.get('/websites', async (req, res) => {
     }
 
     const websites = await response.json();
-    console.log('Fetched', websites.length, 'websites');
     return res.status(200).json({ websites });
   } catch (error) {
     console.error('Error fetching websites:', error.message);
@@ -54,35 +49,62 @@ app.get('/websites', async (req, res) => {
   }
 });
 
-// Upload websites to Supabase
-app.post('/upload-websites', async (req, res) => {
+// Get saved website lists
+app.get('/saved-lists', async (req, res) => {
   try {
-    const { websites } = req.body;
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/website_lists?select=*`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+      },
+    });
 
-    if (!Array.isArray(websites)) {
-      return res.status(400).json({ error: 'websites must be an array' });
+    if (!response.ok) {
+      console.log('No saved lists yet');
+      return res.status(200).json({ lists: [] });
     }
 
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/websites`, {
+    const lists = await response.json();
+    return res.status(200).json({ lists });
+  } catch (error) {
+    console.log('Error fetching saved lists:', error.message);
+    return res.status(200).json({ lists: [] });
+  }
+});
+
+// Save a website list
+app.post('/save-list', async (req, res) => {
+  try {
+    const { name, websites } = req.body;
+
+    if (!name || !Array.isArray(websites)) {
+      return res.status(400).json({ error: 'Invalid request' });
+    }
+
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/website_lists`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
         'Content-Type': 'application/json',
         'apikey': SUPABASE_ANON_KEY,
-        'Prefer': 'resolution=merge-duplicates',
       },
-      body: JSON.stringify(websites),
+      body: JSON.stringify({
+        name,
+        websites,
+      }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Upload error:', errorText);
+      console.error('Save error:', errorText);
       return res.status(response.status).json({ error: errorText });
     }
 
-    return res.status(200).json({ message: `${websites.length} websites uploaded successfully` });
+    return res.status(200).json({ message: 'List saved successfully' });
   } catch (error) {
-    console.error('Upload error:', error.message);
+    console.error('Error saving list:', error.message);
     return res.status(500).json({ error: error.message });
   }
 });
