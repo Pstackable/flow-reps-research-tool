@@ -14,6 +14,63 @@ app.use((req, res, next) => {
   next();
 });
 
+// Supabase config
+const SUPABASE_URL = 'https://atddexueqapijmevomam.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0ZGRleHVlcWFwaWptZXZvbWFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MzIxNzIsImV4cCI6MjEwMDIwODE3Mn0.qCdUFLJuYhTSinVJ9v3h9-rmui3vOZmTn8w4Kdi9oVY';
+
+// Get all websites from Supabase
+app.get('/websites', async (req, res) => {
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/websites`, {
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'Failed to fetch websites' });
+    }
+
+    const websites = await response.json();
+    return res.status(200).json({ websites });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Upload CSV to Supabase
+app.post('/upload-websites', async (req, res) => {
+  try {
+    const { websites } = req.body;
+
+    if (!Array.isArray(websites)) {
+      return res.status(400).json({ error: 'websites must be an array' });
+    }
+
+    // Insert websites into Supabase
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/websites`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify(websites),
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      return res.status(response.status).json({ error: err.message || 'Failed to upload websites' });
+    }
+
+    return res.status(200).json({ message: `${websites.length} websites uploaded successfully` });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Research endpoint
 app.post('/research', async (req, res) => {
   try {
     const { action, topic, keywords, websites } = req.body;
