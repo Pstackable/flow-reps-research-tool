@@ -36,7 +36,7 @@
     .website-checkbox { display: flex; align-items: center; padding: 8px 0; font-size: 13px; }
     .website-checkbox input { margin-right: 8px; cursor: pointer; }
     .website-checkbox label { cursor: pointer; flex: 1; }
-    .prompt-box { padding: 16px; background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 6px; max-height: 300px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.5; color: #333; margin-bottom: 16px; white-space: pre-wrap; word-wrap: break-word; }
+    .prompt-box { padding: 16px; background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 6px; max-height: 400px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.4; color: #333; margin-bottom: 16px; white-space: pre-wrap; word-wrap: break-word; }
     .results-table { width: 100%; border-collapse: collapse; background: white; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; margin-bottom: 24px; }
     .results-table thead { background-color: #333; color: white; }
     .results-table th { padding: 12px; text-align: left; font-weight: 600; font-size: 13px; }
@@ -75,33 +75,18 @@
     function App() {
       const [step, setStep] = useState(1);
       const [topic, setTopic] = useState('');
+      const [searchFocus, setSearchFocus] = useState('');
       const [keywords, setKeywords] = useState([]);
       const [websites, setWebsites] = useState([]);
       const [selectedWebsites, setSelectedWebsites] = useState(new Set());
       const [results, setResults] = useState(null);
       const [history, setHistory] = useState([]);
+      const [generatedPrompt, setGeneratedPrompt] = useState('');
       const [expanding, setExpanding] = useState(false);
       const [searching, setSearching] = useState(false);
       const [progress, setProgress] = useState({ current: 0, total: 0, current_company: '', current_domain: '' });
       const [error, setError] = useState('');
       const [loading, setLoading] = useState(true);
-
-      const PROMPT_TEXT = `I need your help search for PDFs, white papers, technical blog posts, or product pages related to either of the below two topics on this SPECIFIC website home page or its subdomains here, {{website_url}}.
-
-Topic #1: Liquid Cooling for Data Centers
-Keywords that you can look for (exactly and/or semantically): "liquid-cooled servers," "direct-to-chip," "immersion cooling," "data center cooling systems," "AI GPU cooling," "TDP," "facility water system," "rear-door heat exchanger," "CDU," "dielectric fluid," "thermal ride-through," "sustainable data center."
-
-Topic #2: Valve Usage in Modern Applications
-Keywords that you can look for (exactly and/or semantically): "quarter-turn valves," "ball valve," "butterfly valve," "plug valve," "globe valve," "needle valve," "gate valve," "pinch valve," "rotary valves," "valve control," "valve automation," "valves in data centers," "valves in food and beverage," "valves in pharmaceutical," "valves in semiconductor," "valves in pulp and paper," "valves in tire plants," "valves in hospitals," "valves in high-rise buildings," "valve application case study," "valve case studies."
-
-Important Action if a relevant source is found:
-1.) First: State what was found up front (e.g. "A _____ was found)
-2.) Extract a 1–3 sentence summary of the content.
-3.) If the website alludes to the company being a leader or subject matter expert in data-center engineering, before everything else say, "SME ALERT: DATA CENTER ENGINEERING"
-
-If you find confirmed updates, do not say anything more than the directions above. I don't need to hear things like "No other recent updates were found," or "If you want me to provide links or extract more detailed technical insights from any specific document or section mentioned above just let me know!"
-
-If you do not find any relevant information that matches what I asked for, only respond with: No Updates Found`;
 
       useEffect(() => {
         fetch('https://flow-reps-research-tool-production.up.railway.app/websites')
@@ -121,7 +106,7 @@ If you do not find any relevant information that matches what I asked for, only 
           });
           const data = await response.json();
           setHistory(data || []);
-          setStep(5);
+          setStep(6);
         } catch (e) {
           setError('Failed to load history: ' + e.message);
         }
@@ -163,8 +148,40 @@ If you do not find any relevant information that matches what I asked for, only 
         setSelectedWebsites(newSet);
       };
 
+      const buildPrompt = () => {
+        const prompt = `I need your help search for PDFs, white papers, technical blog posts, or product pages related to the following topic on this SPECIFIC website home page or its subdomains here, {{website_url}}.
+
+Search Focus: ${searchFocus}
+
+Keywords to search for (exactly and/or semantically): ${keywords.join(', ')}
+
+Important Actions if a relevant source is found:
+1.) First: State what was found up front (e.g., "A _____ was found")
+2.) Extract a 1–3 sentence summary of the content.
+3.) If the website alludes to the company being a leader or subject matter expert in this field, before everything else say, "SME ALERT: SUBJECT MATTER EXPERT"
+
+If you find confirmed updates, do not say anything more than the directions above. I don't need to hear things like "No other recent updates were found," or "If you want me to provide links or extract more detailed technical insights from any specific document or section mentioned above just let me know!"
+
+If you do not find any relevant information that matches what I asked for, only respond with: No Updates Found
+
+EXAMPLE FORMAT (for reference):
+
+SME ALERT: SUBJECT MATTER EXPERT
+
+1. A white paper titled "Advanced Flange Design for High-Pressure Piping Systems" was found. It covers large bore flange specifications, material selection, pressure ratings, and installation best practices for industrial applications. The paper includes technical diagrams and performance testing data.
+
+2. A product page on "Carbon Steel Flanges for Industrial Applications" describes their large bore flange offerings (2"-24"), including ANSI/ASME specifications, pressure ratings up to 2500 PSI, and material certifications. The page includes downloadable spec sheets and technical documentation.
+
+3. A case study titled "Optimizing Large Bore Flange Connections in Offshore Platforms" demonstrates real-world applications, performance metrics, and cost analysis for large bore flanges in demanding environments.
+
+These findings demonstrate expertise in large bore flange manufacturing and industrial piping solutions.`;
+        setGeneratedPrompt(prompt);
+        setStep(4);
+      };
+
       const search = async () => {
         if (selectedWebsites.size === 0) { setError('Select at least 1 website'); return; }
+        if (!searchFocus.trim()) { setError('Enter search focus'); return; }
         setSearching(true);
         setProgress({ current: 0, total: selectedWebsites.size, current_company: '', current_domain: '' });
         setError('');
@@ -174,7 +191,7 @@ If you do not find any relevant information that matches what I asked for, only 
             topic: topic,
             keywords: JSON.stringify(keywords),
             websites: JSON.stringify(list),
-            customPrompt: PROMPT_TEXT,
+            customPrompt: generatedPrompt,
             action: 'search'
           });
           
@@ -198,7 +215,7 @@ If you do not find any relevant information that matches what I asked for, only 
                   searchDate: data.searchDate, 
                   websiteCount: list.length 
                 });
-                setStep(4);
+                setStep(5);
                 setSearching(false);
               } else if (data.type === 'error') {
                 eventSource.close();
@@ -239,10 +256,12 @@ If you do not find any relevant information that matches what I asked for, only 
       const reset = () => {
         setStep(1);
         setTopic('');
+        setSearchFocus('');
         setKeywords([]);
         setSelectedWebsites(new Set());
         setResults(null);
         setProgress({ current: 0, total: 0, current_company: '', current_domain: '' });
+        setGeneratedPrompt('');
         setError('');
       };
 
@@ -259,7 +278,7 @@ If you do not find any relevant information that matches what I asked for, only 
               {loading && <div className="alert alert-info">⏳ Loading websites...</div>}
               <div className="form-group">
                 <label>Research Topic</label>
-                <input type="text" value={topic} onChange={e => setTopic(e.target.value)} onKeyPress={e => e.key === 'Enter' && expandTopic()} placeholder="e.g., liquid cooling, ball valves" disabled={expanding} />
+                <input type="text" value={topic} onChange={e => setTopic(e.target.value)} onKeyPress={e => e.key === 'Enter' && expandTopic()} placeholder="e.g., large bore flanges, cooling systems" disabled={expanding} />
                 <button className="btn-primary" onClick={expandTopic} disabled={expanding || !topic.trim()}>
                   {expanding ? <><span className="spinner"></span> Expanding...</> : 'Expand topic'}
                 </button>
@@ -304,7 +323,7 @@ If you do not find any relevant information that matches what I asked for, only 
               <div className="button-group">
                 <button className="btn-secondary" onClick={() => setStep(1)}>Back</button>
                 <button className="btn-primary" onClick={() => setStep(3)} disabled={selectedWebsites.size === 0}>
-                  {`Next: Review Prompt (${selectedWebsites.size} sites)`}
+                  {`Next: Define Search (${selectedWebsites.size} sites)`}
                 </button>
               </div>
             </div>
@@ -312,11 +331,27 @@ If you do not find any relevant information that matches what I asked for, only 
 
           {step === 3 && (
             <div>
-              <h2>Review Prompt</h2>
-              <p style={{marginBottom: '12px', color: '#666'}}>This prompt will be used to search all {selectedWebsites.size} websites:</p>
-              <div className="prompt-box">{PROMPT_TEXT}</div>
+              <h2>Define Search Focus</h2>
+              <p style={{marginBottom: '12px', color: '#666'}}>Describe exactly what you're looking for (e.g., "large bore flanges for piping systems" or "flanges ASME specifications"):</p>
+              <div className="form-group">
+                <input type="text" value={searchFocus} onChange={e => setSearchFocus(e.target.value)} onKeyPress={e => e.key === 'Enter' && buildPrompt()} placeholder="e.g., large bore flanges for piping systems" />
+              </div>
               <div className="button-group">
                 <button className="btn-secondary" onClick={() => setStep(2)}>Back</button>
+                <button className="btn-primary" onClick={buildPrompt} disabled={!searchFocus.trim()}>
+                  Next: Review Prompt
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === 4 && (
+            <div>
+              <h2>Review Prompt</h2>
+              <p style={{marginBottom: '12px', color: '#666'}}>This prompt will be used to search all {selectedWebsites.size} websites:</p>
+              <div className="prompt-box">{generatedPrompt}</div>
+              <div className="button-group">
+                <button className="btn-secondary" onClick={() => setStep(3)}>Back</button>
                 <button className="btn-primary" onClick={search} disabled={searching}>
                   {searching ? <><span className="spinner"></span> Searching...</> : `Search ${selectedWebsites.size} Sites`}
                 </button>
@@ -345,7 +380,7 @@ If you do not find any relevant information that matches what I asked for, only 
             </div>
           )}
 
-          {step === 4 && results && !searching && (
+          {step === 5 && results && !searching && (
             <div>
               <div className="alert alert-success">
                 <strong>✓ Complete!</strong> {results.results.length} results from {results.websiteCount} companies
@@ -388,7 +423,7 @@ If you do not find any relevant information that matches what I asked for, only 
             </div>
           )}
 
-          {step === 5 && (
+          {step === 6 && (
             <div>
               <h2>Search History</h2>
               {history.length === 0 ? (
@@ -398,7 +433,7 @@ If you do not find any relevant information that matches what I asked for, only 
                   {history.map((h, i) => (
                     <div key={i} className="history-item" onClick={() => {
                       setResults({ topic: h.topic, results: h.results_data, searchDate: new Date(h.search_date).toLocaleDateString(), websiteCount: h.websites_searched.length });
-                      setStep(4);
+                      setStep(5);
                     }}>
                       <div className="history-item-title">{h.topic}</div>
                       <div className="history-item-meta">{h.websites_searched.length} websites • {new Date(h.search_date).toLocaleDateString()}</div>
