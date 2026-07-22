@@ -18,9 +18,8 @@
     .alert-success { background-color: #efe; color: #060; border: 1px solid #cfc; }
     .form-group { margin-bottom: 24px; }
     .form-group label { display: block; margin-bottom: 8px; font-weight: 500; font-size: 14px; color: #333; }
-    input[type="text"], textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; background: white; color: #1a1a1a; }
-    textarea { min-height: 280px; resize: vertical; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.5; }
-    input:focus, textarea:focus { outline: none; border-color: #0066cc; box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1); }
+    input[type="text"] { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; background: white; color: #1a1a1a; }
+    input:focus { outline: none; border-color: #0066cc; box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1); }
     button { padding: 12px 20px; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
     .btn-primary { background-color: #0066cc; color: white; }
     .btn-primary:hover:not(:disabled) { background-color: #0052a3; }
@@ -37,6 +36,7 @@
     .website-checkbox { display: flex; align-items: center; padding: 8px 0; font-size: 13px; }
     .website-checkbox input { margin-right: 8px; cursor: pointer; }
     .website-checkbox label { cursor: pointer; flex: 1; }
+    .prompt-box { padding: 16px; background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 6px; max-height: 300px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.5; color: #333; margin-bottom: 16px; white-space: pre-wrap; word-wrap: break-word; }
     .results-table { width: 100%; border-collapse: collapse; background: white; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; margin-bottom: 24px; }
     .results-table thead { background-color: #333; color: white; }
     .results-table th { padding: 12px; text-align: left; font-weight: 600; font-size: 13px; }
@@ -71,8 +71,22 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script type="text/babel">
     const { useState, useEffect } = React;
-    
-    const DEFAULT_PROMPT = `I need your help search for PDFs, white papers, technical blog posts, or product pages related to either of the below two topics on this SPECIFIC website home page or its subdomains here, {{website_url}}.
+
+    function App() {
+      const [step, setStep] = useState(1);
+      const [topic, setTopic] = useState('');
+      const [keywords, setKeywords] = useState([]);
+      const [websites, setWebsites] = useState([]);
+      const [selectedWebsites, setSelectedWebsites] = useState(new Set());
+      const [results, setResults] = useState(null);
+      const [history, setHistory] = useState([]);
+      const [expanding, setExpanding] = useState(false);
+      const [searching, setSearching] = useState(false);
+      const [progress, setProgress] = useState({ current: 0, total: 0, current_company: '', current_domain: '' });
+      const [error, setError] = useState('');
+      const [loading, setLoading] = useState(true);
+
+      const PROMPT_TEXT = `I need your help search for PDFs, white papers, technical blog posts, or product pages related to either of the below two topics on this SPECIFIC website home page or its subdomains here, {{website_url}}.
 
 Topic #1: Liquid Cooling for Data Centers
 Keywords that you can look for (exactly and/or semantically): "liquid-cooled servers," "direct-to-chip," "immersion cooling," "data center cooling systems," "AI GPU cooling," "TDP," "facility water system," "rear-door heat exchanger," "CDU," "dielectric fluid," "thermal ride-through," "sustainable data center."
@@ -88,21 +102,6 @@ Important Action if a relevant source is found:
 If you find confirmed updates, do not say anything more than the directions above. I don't need to hear things like "No other recent updates were found," or "If you want me to provide links or extract more detailed technical insights from any specific document or section mentioned above just let me know!"
 
 If you do not find any relevant information that matches what I asked for, only respond with: No Updates Found`;
-
-    function App() {
-      const [step, setStep] = useState(1);
-      const [topic, setTopic] = useState('');
-      const [keywords, setKeywords] = useState([]);
-      const [websites, setWebsites] = useState([]);
-      const [selectedWebsites, setSelectedWebsites] = useState(new Set());
-      const [results, setResults] = useState(null);
-      const [history, setHistory] = useState([]);
-      const [prompt, setPrompt] = useState('');
-      const [expanding, setExpanding] = useState(false);
-      const [searching, setSearching] = useState(false);
-      const [progress, setProgress] = useState({ current: 0, total: 0, current_company: '', current_domain: '' });
-      const [error, setError] = useState('');
-      const [loading, setLoading] = useState(true);
 
       useEffect(() => {
         fetch('https://flow-reps-research-tool-production.up.railway.app/websites')
@@ -164,11 +163,6 @@ If you do not find any relevant information that matches what I asked for, only 
         setSelectedWebsites(newSet);
       };
 
-      const goToPrompt = () => {
-        setPrompt(DEFAULT_PROMPT);
-        setStep(3);
-      };
-
       const search = async () => {
         if (selectedWebsites.size === 0) { setError('Select at least 1 website'); return; }
         setSearching(true);
@@ -180,7 +174,7 @@ If you do not find any relevant information that matches what I asked for, only 
             topic: topic,
             keywords: JSON.stringify(keywords),
             websites: JSON.stringify(list),
-            customPrompt: prompt,
+            customPrompt: PROMPT_TEXT,
             action: 'search'
           });
           
@@ -249,7 +243,6 @@ If you do not find any relevant information that matches what I asked for, only 
         setSelectedWebsites(new Set());
         setResults(null);
         setProgress({ current: 0, total: 0, current_company: '', current_domain: '' });
-        setPrompt('');
         setError('');
       };
 
@@ -310,7 +303,7 @@ If you do not find any relevant information that matches what I asked for, only 
 
               <div className="button-group">
                 <button className="btn-secondary" onClick={() => setStep(1)}>Back</button>
-                <button className="btn-primary" onClick={goToPrompt} disabled={selectedWebsites.size === 0}>
+                <button className="btn-primary" onClick={() => setStep(3)} disabled={selectedWebsites.size === 0}>
                   {`Next: Review Prompt (${selectedWebsites.size} sites)`}
                 </button>
               </div>
@@ -320,13 +313,8 @@ If you do not find any relevant information that matches what I asked for, only 
           {step === 3 && (
             <div>
               <h2>Review Prompt</h2>
-              <p style={{marginBottom: '16px', color: '#666'}}>Edit if needed. {{website_url}} will be replaced with each site domain.</p>
-              <div className="form-group">
-                <textarea value={prompt} onChange={e => setPrompt(e.target.value)} />
-              </div>
-              <button className="btn-secondary" onClick={() => setPrompt(DEFAULT_PROMPT)} style={{marginBottom: '12px', width: '100%'}}>
-                Reset to Default
-              </button>
+              <p style={{marginBottom: '12px', color: '#666'}}>This prompt will be used to search all {selectedWebsites.size} websites:</p>
+              <div className="prompt-box">{PROMPT_TEXT}</div>
               <div className="button-group">
                 <button className="btn-secondary" onClick={() => setStep(2)}>Back</button>
                 <button className="btn-primary" onClick={search} disabled={searching}>
