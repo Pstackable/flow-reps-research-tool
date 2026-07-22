@@ -18,9 +18,8 @@
     .alert-success { background-color: #efe; color: #060; border: 1px solid #cfc; }
     .form-group { margin-bottom: 24px; }
     .form-group label { display: block; margin-bottom: 8px; font-weight: 500; font-size: 14px; color: #333; }
-    input[type="text"], textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; background: white; color: #1a1a1a; }
-    textarea { min-height: 350px; resize: vertical; font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.6; }
-    input:focus, textarea:focus { outline: none; border-color: #0066cc; box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1); }
+    input[type="text"] { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; background: white; color: #1a1a1a; }
+    input:focus { outline: none; border-color: #0066cc; box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1); }
     button { padding: 12px 20px; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
     .btn-primary { background-color: #0066cc; color: white; }
     .btn-primary:hover:not(:disabled) { background-color: #0052a3; }
@@ -72,7 +71,21 @@
   <script type="text/babel">
     const { useState, useEffect } = React;
     
-    const PROMPT_TEMPLATE = `I need your help search for PDFs, white papers, technical blog posts, or product pages related to either of the below two topics on this SPECIFIC website home page or its subdomains here, {{website_url}}.
+    function App() {
+      const [step, setStep] = useState(1);
+      const [topic, setTopic] = useState('');
+      const [keywords, setKeywords] = useState([]);
+      const [websites, setWebsites] = useState([]);
+      const [selectedWebsites, setSelectedWebsites] = useState(new Set());
+      const [results, setResults] = useState(null);
+      const [history, setHistory] = useState([]);
+      const [expanding, setExpanding] = useState(false);
+      const [searching, setSearching] = useState(false);
+      const [progress, setProgress] = useState({ current: 0, total: 0, current_company: '', current_domain: '' });
+      const [error, setError] = useState('');
+      const [loading, setLoading] = useState(true);
+
+      const PROMPT = `I need your help search for PDFs, white papers, technical blog posts, or product pages related to either of the below two topics on this SPECIFIC website home page or its subdomains here, {{website_url}}.
 
 Topic #1: Liquid Cooling for Data Centers
 Keywords that you can look for (exactly and/or semantically): "liquid-cooled servers," "direct-to-chip," "immersion cooling," "data center cooling systems," "AI GPU cooling," "TDP," "facility water system," "rear-door heat exchanger," "CDU," "dielectric fluid," "thermal ride-through," "sustainable data center."
@@ -88,21 +101,6 @@ Important Action if a relevant source is found:
 If you find confirmed updates, do not say anything more than the directions above. I don't need to hear things like "No other recent updates were found," or "If you want me to provide links or extract more detailed technical insights from any specific document or section mentioned above just let me know!"
 
 If you do not find any relevant information that matches what I asked for, only respond with: No Updates Found`;
-
-    function App() {
-      const [step, setStep] = useState(1);
-      const [topic, setTopic] = useState('');
-      const [keywords, setKeywords] = useState([]);
-      const [websites, setWebsites] = useState([]);
-      const [selectedWebsites, setSelectedWebsites] = useState(new Set());
-      const [results, setResults] = useState(null);
-      const [history, setHistory] = useState([]);
-      const [customPrompt, setCustomPrompt] = useState('');
-      const [expanding, setExpanding] = useState(false);
-      const [searching, setSearching] = useState(false);
-      const [progress, setProgress] = useState({ current: 0, total: 0, current_company: '', current_domain: '' });
-      const [error, setError] = useState('');
-      const [loading, setLoading] = useState(true);
 
       useEffect(() => {
         fetch('https://flow-reps-research-tool-production.up.railway.app/websites')
@@ -122,7 +120,7 @@ If you do not find any relevant information that matches what I asked for, only 
           });
           const data = await response.json();
           setHistory(data || []);
-          setStep(5);
+          setStep(4);
         } catch (e) {
           setError('Failed to load history: ' + e.message);
         }
@@ -164,14 +162,8 @@ If you do not find any relevant information that matches what I asked for, only 
         setSelectedWebsites(newSet);
       };
 
-      const goToPromptEditor = () => {
-        setCustomPrompt(PROMPT_TEMPLATE);
-        setStep(3);
-      };
-
       const search = async () => {
         if (selectedWebsites.size === 0) { setError('Select at least 1 website'); return; }
-        if (!customPrompt.trim()) { setError('Prompt cannot be empty'); return; }
         setSearching(true);
         setProgress({ current: 0, total: selectedWebsites.size, current_company: '', current_domain: '' });
         setError('');
@@ -181,7 +173,7 @@ If you do not find any relevant information that matches what I asked for, only 
             topic: topic,
             keywords: JSON.stringify(keywords),
             websites: JSON.stringify(list),
-            customPrompt: customPrompt,
+            customPrompt: PROMPT,
             action: 'search'
           });
           
@@ -205,7 +197,7 @@ If you do not find any relevant information that matches what I asked for, only 
                   searchDate: data.searchDate, 
                   websiteCount: list.length 
                 });
-                setStep(4);
+                setStep(3);
                 setSearching(false);
               } else if (data.type === 'error') {
                 eventSource.close();
@@ -250,7 +242,6 @@ If you do not find any relevant information that matches what I asked for, only 
         setSelectedWebsites(new Set());
         setResults(null);
         setProgress({ current: 0, total: 0, current_company: '', current_domain: '' });
-        setCustomPrompt('');
         setError('');
       };
 
@@ -311,30 +302,7 @@ If you do not find any relevant information that matches what I asked for, only 
 
               <div className="button-group">
                 <button className="btn-secondary" onClick={() => setStep(1)}>Back</button>
-                <button className="btn-primary" onClick={goToPromptEditor} disabled={selectedWebsites.size === 0}>
-                  {`Next: Review Prompt (${selectedWebsites.size} sites)`}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div>
-              <h2>Review &amp; Edit Prompt</h2>
-              <p style={{marginBottom: '16px', color: '#666'}}>Edit the prompt if needed. Use {{website_url}} to reference each site. Then click Search.</p>
-              
-              <div className="form-group">
-                <label>Search Prompt</label>
-                <textarea value={customPrompt} onChange={e => setCustomPrompt(e.target.value)} placeholder="Prompt for Perplexity..." />
-              </div>
-
-              <button className="btn-secondary" onClick={() => setCustomPrompt(PROMPT_TEMPLATE)} style={{marginBottom: '12px', width: '100%'}}>
-                Reset to Default
-              </button>
-
-              <div className="button-group">
-                <button className="btn-secondary" onClick={() => setStep(2)}>Back</button>
-                <button className="btn-primary" onClick={search} disabled={searching || selectedWebsites.size === 0}>
+                <button className="btn-primary" onClick={search} disabled={selectedWebsites.size === 0}>
                   {searching ? <><span className="spinner"></span> Searching...</> : `Search ${selectedWebsites.size} Sites`}
                 </button>
               </div>
@@ -343,7 +311,7 @@ If you do not find any relevant information that matches what I asked for, only 
 
           {searching && (
             <div className="progress-container">
-              <div className="progress-text">🔍 Live Progress</div>
+              <div className="progress-text">🔍 Searching {selectedWebsites.size} websites...</div>
               <div className="progress-bar">
                 <div className="progress-fill" style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}>
                   {progress.total > 0 ? `${progress.current}/${progress.total}` : ''}
@@ -362,7 +330,7 @@ If you do not find any relevant information that matches what I asked for, only 
             </div>
           )}
 
-          {step === 4 && results && !searching && (
+          {step === 3 && results && !searching && (
             <div>
               <div className="alert alert-success">
                 <strong>✓ Complete!</strong> {results.results.length} results from {results.websiteCount} companies
@@ -405,7 +373,7 @@ If you do not find any relevant information that matches what I asked for, only 
             </div>
           )}
 
-          {step === 5 && (
+          {step === 4 && (
             <div>
               <h2>Search History</h2>
               {history.length === 0 ? (
@@ -415,7 +383,7 @@ If you do not find any relevant information that matches what I asked for, only 
                   {history.map((h, i) => (
                     <div key={i} className="history-item" onClick={() => {
                       setResults({ topic: h.topic, results: h.results_data, searchDate: new Date(h.search_date).toLocaleDateString(), websiteCount: h.websites_searched.length });
-                      setStep(4);
+                      setStep(3);
                     }}>
                       <div className="history-item-title">{h.topic}</div>
                       <div className="history-item-meta">{h.websites_searched.length} websites • {new Date(h.search_date).toLocaleDateString()}</div>
